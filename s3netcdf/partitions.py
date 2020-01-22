@@ -1,6 +1,6 @@
 import numpy as np
 
-def getFileShape(data,maxSize=1):
+def getFileShape(dataShape,dtype="f8",maxSize=1):
   '''
   TODO: Change description
   Find new array shape based on maximum file size
@@ -10,11 +10,9 @@ def getFileShape(data,maxSize=1):
   :return: numpy.array (shape)
   '''
   
-  itemSize = data.itemsize
+  itemSize = np.dtype(dtype).itemsize
   maxSize = maxSize * 1024.0**2
   
-  
-  dataShape = data.shape
   items = 1
   fileShape = np.ones(len(dataShape), dtype=np.int)
   for i in range(len(dataShape) - 1, -1, -1):
@@ -54,7 +52,7 @@ def getMasterShape(data):
   """
   
   dataShape = data.shape
-  fileShape = getFileShape(data)
+  fileShape = getFileShape(data.shape)
   partitions = np.ceil(np.array(dataShape) / fileShape).astype('int')
   masterShape = np.insert(fileShape, 0, partitions)
   return masterShape

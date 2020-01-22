@@ -15,11 +15,11 @@ data3 = np.reshape(np.arange(shape3[0] * shape3[1], dtype=np.float64), shape3)
 data4 = np.reshape(np.arange(shape4[0] * shape4[1], dtype=np.float64), shape4)
 
 def test_getFileShape():
-  np.testing.assert_array_equal(getFileShape(data1), shape1)
-  np.testing.assert_array_equal(getFileShape(data2), shape2)
-  np.testing.assert_array_equal(getFileShape(data3), [4,16385])
-  np.testing.assert_array_equal(getFileShape(data3,2), shape3)
-  np.testing.assert_array_equal(getFileShape(data4), [1, 65537])
+  np.testing.assert_array_equal(getFileShape(data1.shape), shape1)
+  np.testing.assert_array_equal(getFileShape(data2.shape), shape2)
+  np.testing.assert_array_equal(getFileShape(data3.shape), [4,16385])
+  np.testing.assert_array_equal(getFileShape(data3.shape,maxSize=2), shape3)
+  np.testing.assert_array_equal(getFileShape(data4.shape), [1, 65537])
 
 def test_getMasterShape():
   np.testing.assert_array_equal(getMasterShape(data1), [1,1,3,7])
@@ -100,7 +100,7 @@ def test_indexMulti():
   
   
 def test_concatenatePartitions():
-  fileShape = getFileShape(data4)
+  fileShape = getFileShape(data4.shape)
   n=np.prod(fileShape)
   
   searchArray=[[0, 0], [0, 1], [1, 1]]
@@ -133,8 +133,8 @@ def test_concatenatePartitions():
 
 if __name__ == "__main__":
   test_getFileShape()
-  test_getMasterShape()
-  test_getMasterIndices()
-  test_getPartitions()
-  test_indexMulti()
-  test_concatenatePartitions()
+  # test_getMasterShape()
+  # test_getMasterIndices()
+  # test_getPartitions()
+  # test_indexMulti()
+  # test_concatenatePartitions()

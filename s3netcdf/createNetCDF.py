@@ -3,8 +3,9 @@ from netCDF4 import num2date, date2num
 import numpy as np
 from datetime import datetime, timedelta
 
+from s3netcdf.partitions import getFileShape,getMasterShape
 
-def createNetCDF(filepath,master=False,
+def netCDF2D(filepath,master=False,
                  ntime=0,nnode=1,nelem=1,nspectra=1,nfreq=1,ndir=1,
                  vars=["a"],
                  svars=['e'],
@@ -37,23 +38,41 @@ def createNetCDF(filepath,master=False,
     if(ntime!=0):
       shape=("ntime",) + shape
       sshape = ("ntime",) + sshape
-    
-    if(master):
-      nshape = len(shape)
-      src_file.createDimension("nmaster", nshape*2) # 4= for 2D results(temporal,spatial), 4D=8(temporal,spatial,fre,dir)
-      src_file.createDimension("nchild", nshape) # 2=2D results, 4=4D results
-     
-      nsshape = len(sshape)
-      src_file.createDimension("nsmaster", nsshape * 2)
-      src_file.createDimension("nschild", nsshape)
-    
+      
     for var in vars:
       src_file.createVariable(var, type, shape)
 
     for svar in svars:
       src_file.createVariable(svar, type, sshape)
+    
+    
+    if(master):
+      nshape = len(shape)
+      src_file.createDimension("nmaster", nshape*2) # 4= for 2D results(temporal,spatial), 4D=8(temporal,spatial,fre,dir)
+      src_file.createDimension("nchild", nshape) # 2=2D results, 4=4D results
+      masterShape = src_file.createVariable("masterShape", "i4", ("nmaster",))
+      childShape = src_file.createVariable("childShape", "i4", ("nchild",))
+      
+      childShape[:]=getFileShape()
+     
+      nsshape = len(sshape)
+      src_file.createDimension("nsmaster", nsshape * 2)
+      src_file.createDimension("nschild", nsshape)
+      smasterShape = src_file.createVariable("smasterShape", "i4", ("nsmaster",))
+      schildShape = src_file.createVariable("schildShape", "i4", ("nschild",))
+
+    
+
+    
+      
+
 
 def writeNetCDF(src_master, indices, data):
+  # get master shape
+  # get file_shape
+  # uniquePartitions, indexPartitions,indexData = getPartitions(searchArray, shape4, masterShape)
+  # indices
   #
+  
   None
   
