@@ -124,8 +124,6 @@ class NetCDF2D(object):
       _var.standard_name = var["standard_name"]
       _var.long_name = var["long_name"]
 
-
-    
     
   
   def createNC(self,nnode=1, nelem=1, vars=None):
@@ -150,6 +148,8 @@ class NetCDF2D(object):
     filepath = self.nca
     if vars is None: vars = []
     with Dataset(filepath, "w") as src_file:
+      
+      src_file.createGroup("origin")
       
       # Dimensions
       src_file.createDimension("ntime", ntime)  # Number of output time step
