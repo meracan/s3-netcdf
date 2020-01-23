@@ -7,33 +7,26 @@ from datetime import datetime, timedelta
 
 
 from s3netcdf.partitions import getMasterShape,getPartitions
-from s3netcdf.netcdf import createNetCDF,getGroupPartition,writeMetadata
+from s3netcdf.netcdf import createNetCDF,writeMetadata,GroupPartition
 from functools import wraps
 
-
-
-
-
 class NetCDF2D(object):
-  def __init__(self, **kwargs):
-    self.name = name = kwargs.get('name', "Test") 
-    self.folder = folder = kwargs.get('folder', None)
-    self.title  = kwargs.get('title', None) 
-    self.institution  = kwargs.get('institution', None) 
-    self.history  = kwargs.get('history', None) 
-    self.references  = kwargs.get('references', None) 
-    self.comment  = kwargs.get('comment', None) 
+  def __init__(self, name,folder,nc,nca,metadata):
+    self.groupPartitions = {}
+    self.name = name
+    self.folder = folder
+    self.metadata = metadata
     
     if folder is None: folder = os.getcwd()
-    folder = os.path.join(folder, name)
+    self.folder =folder= os.path.join(folder, name)
   
     if not os.path.exists(folder):
       os.makedirs(folder)
     
     self.ncPath = os.path.join(folder, "{}.nc".format(name))
     self.ncaPath = os.path.join(folder, "{}.nca".format(name))
-    if self.isExist():self.open()
-  
+    self.create(nc,nca)
+    self.open()
   
   def isExist(self):
     if os.path.exists(self.ncPath) and os.path.exists(self.ncaPath): return True
@@ -47,85 +40,38 @@ class NetCDF2D(object):
     return wrapper
   
   def create(self,nc,nca):
-    createNetCDF(self.ncPath,**nc)
-    createNetCDF(self.ncaPath,**nca)
-    self.open()
+    if(self.isExist()):return
+    createNetCDF(self.ncPath,folder=self.folder,metadata=self.metadata,**nc)
+    createNetCDF(self.ncaPath,folder=self.folder,metadata=self.metadata,**nca)
     
   def open(self):
     self.nc = Dataset(self.ncPath, "r+")
     self.nca = Dataset(self.ncaPath, "r+")
+ 
+    for group in self.nca.groups:
+      self.groupPartitions[group] = GroupPartition(self.folder, self.nca, group,self.name)
   
   def close(self):
     self.nc.close()
     self.nca.close()
-    
-  def findVar(self,vname):
-    if vname in self.nc.variables:return self.nc
-    if len(self.nc.groups)>0:
-      group = self.nc.groups[0]
-      if vname in self.nc.variables:return self.nca
-    raise Exception("{} does not exist!".format(vname))
-  
-  def write(self,vname,indices,data):
-    src_file = findVar(vname)
-    
-  
-  
-  def getGroupPartitions(self):
-    if not self.isExist():return
-    with Dataset(self.nca, "r") as src_file:
-      for group in src_file.groups:
-        self.groups[group]=getGroupPartition(src_file,group)
-    
-  
-    
-  
-  @checkNetCDF
-  def writeMetadata(self,**kwargs):
-    for filepath in [self.nc,self.nca]:
-        writeMetadata(filepath,**kwargs)
+
+
 
   @checkNetCDF
-  def write2D(self,vname, data):
-    with Dataset(self.nc, "r+") as src_file:
-      var = src_file.variables[vname]
-      var[:] = data
+  def write(self,vname,gname=None):
+    
+    if(gname is None):
+      src_file = self.nc
+      if not (vname in src_file.variables):raise Exception("Variable does not exist")
+      return self.nc.variables[vname]
+    else:
+      src_file = self.nca
+      if not gname in src_file.groups:
+        raise Exception("Group does not exist")
+      src_group = src_file.groups[gname]
+      if not vname in src_group.variables:raise Exception("Variable does not exist")
+      groupPartition = self.groupPartitions[src_group.name]
+      return groupPartition.write(vname)
+      
 
-  @checkNetCDF
-  def writePartition(self,group,vname,data,indices):
-    data = np.array(data)
-    indices = np.array(indices)
-    
-    
-
-  
-  
-  def createNCOutput(self,filepath,var):
-    None
-    # nca = dict(
-    #   dimensions = [
-    #     dict(name="ntime",value=1),
-    #     dict(name="nnode",value=1),
-    #     dict(name="nspectra",value=1),
-    #     dict(name="nfreq",value=1),
-    #     dict(name="ndir",value=1),
-    #   ],
-    #   groups=[
-    #     dict(name="s",strshape=["ntime", "nnode"],variables=vars),
-    #     dict(name="t",strshape=["nnode","ntime"],variables=vars),
-    #     dict(name="ss",strshape=["ntime", "nspectra", "nfreq", "ndir"],variables=spectravar),
-    #     dict(name="ss",strshape=["nspectra","ntime", "nfreq", "ndir"],variables=spectravar)
-    #   ]
-    # )
-    
-  
-  def createNC(self,**kwargs):
-    createNetCDF(self.nc,**kwargs)
-    
-  def createNCA(self, **kwargs):
-    createNetCDF(self.nca,**kwargs)
-
-
-  
-    
-  
+ 
