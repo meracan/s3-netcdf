@@ -1,6 +1,6 @@
 import numpy as np
 
-def getFileShape(dataShape,dtype="f8",maxSize=1):
+def getChildShape(dataShape,dtype="f8",maxSize=1):
   '''
   TODO: Change description
   Find new array shape based on maximum file size
@@ -29,13 +29,13 @@ def getFileShape(dataShape,dtype="f8",maxSize=1):
   return fileShape
 
 
-def getMasterShape(data):
+def getMasterShape(dataShape,return_childShape=False,**kwargs):
   """
   Find array shape based on new file partitions
   
   Parameters
   ----------
-  data: ndarray
+  dataShape: ndarray
   
   Returns
   -------
@@ -50,14 +50,14 @@ def getMasterShape(data):
   i.e (10,10)=> (10,2,1,5); 10 partitions on the first axis, 2 partions on the second axis with file shape of (1,5)
   
   """
-  
-  dataShape = data.shape
-  fileShape = getFileShape(data.shape)
+
+  fileShape = getChildShape(dataShape,**kwargs)
   partitions = np.ceil(np.array(dataShape) / fileShape).astype('int')
   masterShape = np.insert(fileShape, 0, partitions)
+  if(return_childShape):return masterShape, fileShape
   return masterShape
 
-def getMasterIndices(indices, dataShape,masterShape):
+def getMasterIndices(indices,dataShape,masterShape):
   """
   TODO: Change description
   :param indices:
@@ -65,6 +65,7 @@ def getMasterIndices(indices, dataShape,masterShape):
   :param masterShape:
   :return:
   """
+  
   indices = np.array(indices)
   if(len(indices.shape)==1):indices=indices[np.newaxis,:]
   indices = indices.T

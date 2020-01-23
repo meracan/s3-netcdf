@@ -1,5 +1,5 @@
 import pytest
-from s3netcdf.partitions import getFileShape,\
+from s3netcdf.partitions import getChildShape,\
   getMasterShape,getMasterIndices,getPartitions,concatenatePartitions,indexMulti
 
 import numpy as np
@@ -14,35 +14,37 @@ data2 = np.reshape(np.arange(shape2[0] * shape2[1], dtype=np.float64), shape2)
 data3 = np.reshape(np.arange(shape3[0] * shape3[1], dtype=np.float64), shape3)
 data4 = np.reshape(np.arange(shape4[0] * shape4[1], dtype=np.float64), shape4)
 
-def test_getFileShape():
-  np.testing.assert_array_equal(getFileShape(data1.shape), shape1)
-  np.testing.assert_array_equal(getFileShape(data2.shape), shape2)
-  np.testing.assert_array_equal(getFileShape(data3.shape), [4,16385])
-  np.testing.assert_array_equal(getFileShape(data3.shape,maxSize=2), shape3)
-  np.testing.assert_array_equal(getFileShape(data4.shape), [1, 65537])
+def test_getChildShape():
+  np.testing.assert_array_equal(getChildShape(data1.shape), shape1)
+  np.testing.assert_array_equal(getChildShape(data2.shape), shape2)
+  np.testing.assert_array_equal(getChildShape(data3.shape), [4,16385])
+  np.testing.assert_array_equal(getChildShape(data3.shape,maxSize=2), shape3)
+  np.testing.assert_array_equal(getChildShape(data4.shape), [1, 65537])
 
 def test_getMasterShape():
-  np.testing.assert_array_equal(getMasterShape(data1), [1,1,3,7])
-  np.testing.assert_array_equal(getMasterShape(data2), [1, 1, 8, 16384])
-  np.testing.assert_array_equal(getMasterShape(data3), [2, 1, 4, 16385])
-  np.testing.assert_array_equal(getMasterShape(data4), [2, 2, 1, 65537])
+  np.testing.assert_array_equal(getMasterShape(data1.shape), [1,1,3,7])
+  np.testing.assert_array_equal(getMasterShape(data2.shape), [1, 1, 8, 16384])
+  np.testing.assert_array_equal(getMasterShape(data3.shape), [2, 1, 4, 16385])
+  np.testing.assert_array_equal(getMasterShape(data4.shape), [2, 2, 1, 65537])
 
 def test_getMasterIndices():
-  np.testing.assert_array_equal(getMasterIndices([1, 0],shape1,getMasterShape(data1)), [[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([[0,0],[0, 1],[1, 0]], shape1, getMasterShape(data1)), [[0, 0, 0, 0],[0, 0,0 , 1],[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([1, 0], shape3, getMasterShape(data3)), [[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([6, 0], shape3, getMasterShape(data3)), [[1, 0, 2, 0]])
-  np.testing.assert_array_equal(getMasterIndices([1, 0], shape4, getMasterShape(data4)), [[0, 1, 0, 65536]])
-  np.testing.assert_array_equal(getMasterIndices([1, 1], shape4, getMasterShape(data4)), [[1, 0, 0, 0]])
+  np.testing.assert_array_equal(getMasterIndices([1, 0], shape1, getMasterShape(shape1)), [[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices([1, 0],shape1,getMasterShape(shape1)), [[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices([[0,0],[0, 1],[1, 0]], shape1, getMasterShape(shape1)), [[0, 0, 0, 0],[0, 0,0 , 1],[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices([1, 0], shape3, getMasterShape(shape3)), [[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices([6, 0], shape3, getMasterShape(shape3)), [[1, 0, 2, 0]])
+  np.testing.assert_array_equal(getMasterIndices([1, 0], shape4, getMasterShape(shape4)), [[0, 1, 0, 65536]])
+  np.testing.assert_array_equal(getMasterIndices([1, 1], shape4, getMasterShape(shape4)), [[1, 0, 0, 0]])
+
   
 def test_getPartitions():
-  uniquePartitions,indexPartitions,indexData = getPartitions([0, 0], shape4, getMasterShape(data4))
+  uniquePartitions,indexPartitions,indexData = getPartitions([0, 0], shape4, getMasterShape(data4.shape))
   np.testing.assert_array_equal(uniquePartitions, [[0, 0]])
   np.testing.assert_array_equal(indexPartitions, [0])
   np.testing.assert_array_equal(indexData, [[0,0,0]])
   
 
-  uniquePartitions, indexPartitions,indexData = getPartitions([[0,0],[0, 1],[1, 1]], shape4, getMasterShape(data4))
+  uniquePartitions, indexPartitions,indexData = getPartitions([[0,0],[0, 1],[1, 1]], shape4, getMasterShape(data4.shape))
   np.testing.assert_array_equal(uniquePartitions, [[0, 0],[1,0]])
   np.testing.assert_array_equal(indexPartitions, [0,0,1])
   np.testing.assert_array_equal(indexData, [[0,0,0],[0,0,1],[1,0,0]])
@@ -100,12 +102,12 @@ def test_indexMulti():
   
   
 def test_concatenatePartitions():
-  fileShape = getFileShape(data4.shape)
+  fileShape = getChildShape(data4.shape)
   n=np.prod(fileShape)
   
   searchArray=[[0, 0], [0, 1], [1, 1]]
   
-  masterShape=getMasterShape(data4)
+  masterShape=getMasterShape(data4.shape)
   uniquePartitions, indexPartitions,indexData = getPartitions(searchArray, shape4, masterShape)
   
   # Get Data part
@@ -132,8 +134,8 @@ def test_concatenatePartitions():
 
 
 if __name__ == "__main__":
-  test_getFileShape()
-  # test_getMasterShape()
+  test_getChildShape()
+  test_getMasterShape()
   # test_getMasterIndices()
   # test_getPartitions()
   # test_indexMulti()
