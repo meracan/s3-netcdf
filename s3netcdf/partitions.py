@@ -72,6 +72,35 @@ def getMasterIndices(indices,dataShape,masterShape):
   index = np.ravel_multi_index(indices, dataShape)
   return np.array(np.unravel_index(index, masterShape)).T
 
+def getMasterSlices(idx,dataShape,masterShape):
+  """
+  TODO: Change description
+  :param indices:
+  :param dataShape:
+  :param masterShape:
+  :return:
+  """
+  if isinstance(idx, slice):idx=[idx]
+  if isinstance(idx, int):idx=[idx]
+  arrays=[]
+  arraye=[]
+  for dim in range(len(dataShape)):
+    start=0
+    stop=dataShape[dim]-1
+    if dim<len(idx):
+      value=idx[dim]
+      if isinstance(value, int):value=slice(value,value,None)
+      if value.start is not None:start=value.start
+      if value.stop is not None:stop=value.stop
+    arrays.append(start)
+    arraye.append(stop)
+  
+  indices = np.vstack((arrays,arraye))
+  
+  indices = indices.T
+  index = np.ravel_multi_index(indices, dataShape)
+  return np.array(np.unravel_index(index, masterShape)).T
+
 def getPartitions(indices, dataShape,masterShape):
   """
   TODO: Change description
@@ -87,6 +116,16 @@ def getPartitions(indices, dataShape,masterShape):
   indexDataFile = masterIndices[:, n:]
   indexData = np.concatenate((indexPartitions[:, None], indexDataFile), axis=1)
   return uniquePartitions,indexPartitions,indexData
+
+def getPartitionsSlices(slices,dataShape,masterShape):
+  masterIndices = getMasterIndices(indices, dataShape,masterShape)
+  n = len(dataShape)
+  allPartitions=masterIndices[:, :n]
+  uniquePartitions,indexPartitions = np.unique(allPartitions,axis=0,return_inverse=True)
+  indexDataFile = masterIndices[:, n:]
+  indexData = np.concatenate((indexPartitions[:, None], indexDataFile), axis=1)
+  return uniquePartitions,indexPartitions,indexData
+
 
 def concatenatePartitions(partitions):
   partitions =  np.array(partitions)

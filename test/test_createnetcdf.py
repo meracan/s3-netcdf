@@ -11,14 +11,16 @@ def test_create():
   netcdf2d=NetCDF2D(**intput1)
   # netcdf2d.write("u", [[0, 0],[1, 1],[1, 2]], [0,1,2], "s")
   
-  print((netcdf2d.write("u","s"))[[0,1],1])
+  # index = np.ravel_multi_index([:,:], (10,10))
+  # print((netcdf2d.write("u","s"))[0,0])
+  # print((netcdf2d.write("u","s"))[[0,1],:,100])
   # netcdf2d.write("lat", [[0, 0]], [0], "s")
   
 def test_write():
   netcdf2d = NetCDF2D(**intput1)
-  netcdf2d.write("u", [[0, 0]], [0], "s")
-  netcdf2d.write("u", [[0, 0]], [0], "s")
-  netcdf2d.write("u",[[0,0]],[0],"s")
+  # netcdf2d.write("u", [[0, 0]], [0], "s")
+  # netcdf2d.write("u", [[0, 0]], [0], "s")
+  # netcdf2d.write("u",[[0,0]],[0],"s")
 
   #
   # lat=np.arange(0, nnode, dtype=np.float64)

@@ -38,7 +38,7 @@ class GroupPartition(object):
     
   
   def write(self,vname):
-    return CC()
+    return GroupArray(self)
     # data = np.array(data)
     # indices = np.array(indices)
     # if (len(self.shape) != len(indices.shape) or len(indices) != len(data)):
@@ -52,9 +52,47 @@ class GroupPartition(object):
     #   # TODO:
     # print(indexPartitions,indexData)
 
-class CC(object):
+
+  
+
+class GroupArray(object):
+  def __init__(self, gp):
+    self.gp = gp
+  
   def __getitem__(self, idx):
-    print(idx)
+  # if isinstance(idx, slice):
+  #   start = 0 if slice.start is None else slice.start
+  #   end   = gp.shape[0] if slice.end is None else slice.end
+  #   step = 1 if slice.step is None else slice.step
+  #   (end - start)**
+  #   index=np.arange(0,end,step,dtype="i4")
+  # elif isinstance( idx, int ) :
+      
+  # elif isinstance(idx, tuple):
+  #   for t in idx:
+  #     getType(t,f=False)
+  # else:
+  #   raise TypeError, "Invalid argument type."  
+    
+    
+            
+  #   if isinstance( key, slice ) :
+        
+  #       return [self[ii] for ii in xrange(*key.indices(len(self)))]
+  #   elif isinstance( key, int ) :
+  #       if key < 0 : #Handle negative indices
+  #           key += len( self )
+  #       if key < 0 or key >= len( self ) :
+  #           raise IndexError, "The index (%d) is out of range."%key
+  #       return self.getData(key) #Get the data from elsewhere
+  #   else:
+  #       raise TypeError, "Invalid argument type."
+    
+  #   print(idx,len(idx))
+    # print(idx,idx[1].start)
+    print(np.array(np.ndindex(3, 2, 1)))
+    return None
+  def __setitem__(self, idx,value):
     return None
 # class NamedRows(np.ndarray):
 #   def __new__(cls, *args, **kwargs):
