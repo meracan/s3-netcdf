@@ -34,7 +34,45 @@ class GroupPartition(object):
       for attribute in src_group.variables[vname].ncattrs():
         variable[attribute] = getattr(src_group.variables[vname],attribute)
       self.variablesSetup[vname]=dict(dimensions=dimensions,variables=[variable])
+
+
+  
+  def checkSize(self,size):
+    if(size>1E+9):raise ValueError("Array too large")
     
+  def __getitem__(self, idx):
+    if isinstance(idx, slice):
+      start = 0 if slice.start is None else slice.start
+      end   = self.shape[0] if slice.stop is None else slice.stop
+      step = 1 if slice.step is None else slice.step
+      size = (end-start) * np.prod(self.shape[1:])
+      self.checkSize(size)
+    elif isinstance( idx, int ):
+      size = np.prod(self.shape[1:])
+      self.checkSize(size)
+      
+    elif isinstance(idx, tuple):
+      for i,t in enumerate(idx):
+        if isinstance(t, slice):
+          start = 0 if slice.start is None else slice.start
+          end = self.shape[i] if slice.stop is None else slice.stop
+          step = 1 if slice.step is None else slice.step
+          size = (end - start) * np.prod(self.shape[slice(i+1)])
+          self.checkSize(size)
+        elif isinstance(t, int):
+          size = np.prod(self.shape[slice(i+1)])
+          self.checkSize(size)
+        elif isinstance(t, list) or isinstance(t, np.ndarray):
+          t = np.array(t)
+          self.checkSize(t.size)
+          if(len(t)>self.shape[i]):raise ValueError("Length of exceeds limit")
+        else:
+          raise TypeError("Invalid argument type.")
+    else:
+      raise TypeError("Invalid argument type.")
+
+  def __setitem__(self, idx,value):
+    None
     
   
   def write(self,vname):

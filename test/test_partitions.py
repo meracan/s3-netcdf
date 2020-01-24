@@ -1,15 +1,16 @@
 import pytest
 from s3netcdf.partitions import getChildShape,\
   getMasterShape,getMasterIndices,getPartitions,concatenatePartitions,indexMulti,\
-  getMasterSlices
+  createIndices
+  # getMasterSlices,getPartitionsSlices,
 
 import numpy as np
 
 shape1 = [3, 7]
 shape2 = [8, 16384]  # 1MB
 shape3 = [8, 16385]  # >1MB
-shape4 = [2, 131073]  # >1MB on last column
-# shape4 = [24*365*15, 300000]  # >1MB on last column
+# shape4 = [2, 131073]  # >1MB on last column
+shape4 = [24*365*15, 300000]  # >1MB on last column
 
 data1 = np.reshape(np.arange(shape1[0] * shape1[1]), shape1)
 data2 = np.reshape(np.arange(shape2[0] * shape2[1], dtype=np.float64), shape2)
@@ -17,17 +18,17 @@ data3 = np.reshape(np.arange(shape3[0] * shape3[1], dtype=np.float64), shape3)
 # data4 = np.reshape(np.arange(shape4[0] * shape4[1], dtype=np.float64), shape4)
 
 def test_getChildShape():
-  np.testing.assert_array_equal(getChildShape(data1.shape), shape1)
-  np.testing.assert_array_equal(getChildShape(data2.shape), shape2)
-  np.testing.assert_array_equal(getChildShape(data3.shape), [4,16385])
-  np.testing.assert_array_equal(getChildShape(data3.shape,maxSize=2), shape3)
-  np.testing.assert_array_equal(getChildShape(data4.shape), [1, 65537])
+  np.testing.assert_array_equal(getChildShape(shape1), shape1)
+  np.testing.assert_array_equal(getChildShape(shape2), shape2)
+  np.testing.assert_array_equal(getChildShape(shape3), [4,16385])
+  np.testing.assert_array_equal(getChildShape(shape3,maxSize=2), shape3)
+  np.testing.assert_array_equal(getChildShape(shape4), [1, 65537])
 
 def test_getMasterShape():
-  np.testing.assert_array_equal(getMasterShape(data1.shape), [1,1,3,7])
-  np.testing.assert_array_equal(getMasterShape(data2.shape), [1, 1, 8, 16384])
-  np.testing.assert_array_equal(getMasterShape(data3.shape), [2, 1, 4, 16385])
-  np.testing.assert_array_equal(getMasterShape(data4.shape), [2, 2, 1, 65537])
+  np.testing.assert_array_equal(getMasterShape(shape1), [1,1,3,7])
+  np.testing.assert_array_equal(getMasterShape(shape2), [1, 1, 8, 16384])
+  np.testing.assert_array_equal(getMasterShape(shape3), [2, 1, 4, 16385])
+  np.testing.assert_array_equal(getMasterShape(shape4), [2, 2, 1, 65537])
 
 def test_getMasterIndices():
   np.testing.assert_array_equal(getMasterIndices([1, 0], shape1, getMasterShape(shape1)), [[0, 0, 1, 0]])
@@ -38,27 +39,41 @@ def test_getMasterIndices():
   np.testing.assert_array_equal(getMasterIndices([1, 0], shape4, getMasterShape(shape4)), [[0, 1, 0, 65536]])
   np.testing.assert_array_equal(getMasterIndices([1, 1], shape4, getMasterShape(shape4)), [[1, 0, 0, 0]])
 
-def test_getMasterSlices():
-  print(getMasterSlices((slice(0,1,None),slice(0,2,None)),shape4,getMasterShape(shape4)))
+def test_createIndices():
+  indices = createIndices((2,100),(0))
   
+  # np.mgrid[0:10, 0:10, 0:10]
+  None
   
 def test_getPartitions():
-  uniquePartitions,indexPartitions,indexData = getPartitions([0, 0], shape4, getMasterShape(shape4))
-  np.testing.assert_array_equal(uniquePartitions, [[0, 0]])
-  np.testing.assert_array_equal(indexPartitions, [0])
-  np.testing.assert_array_equal(indexData, [[0,0,0]])
-  # array =np.concatenate(np.indices((2,300000)).transpose(1,2,0)) 
+  # uniquePartitions,indexPartitions,indexData = getPartitions([0, 0], shape4, getMasterShape(shape4))
+  # np.testing.assert_array_equal(uniquePartitions, [[0, 0]])
+  # np.testing.assert_array_equal(indexPartitions, [0])
+  # np.testing.assert_array_equal(indexData, [[0,0,0]])
   
-  # np.arange(0,300000,dtype="i4")
-  # uniquePartitions,indexPartitions,indexData = getPartitions(array, shape4, getMasterShape(shape4,maxSize=4))
-  # print(uniquePartitions,)
-  # print(uniquePartitions)
+  array =np.concatenate(np.indices((2,300000)).transpose(1,2,0))
+  array[:,0] = array[:,0]+1
+
   
-  uniquePartitions, indexPartitions,indexData = getPartitions([[0,0],[0, 1],[1, 1]], shape4, getMasterShape(shape4))
-  np.testing.assert_array_equal(uniquePartitions, [[0, 0],[1,0]])
-  np.testing.assert_array_equal(indexPartitions, [0,0,1])
-  np.testing.assert_array_equal(indexData, [[0,0,0],[0,0,1],[1,0,0]])
+  uniquePartitions,indexPartitions,indexData = getPartitions(array, shape4, getMasterShape(shape4,maxSize=1))
+  print(uniquePartitions,)
+  print(uniquePartitions)
   
+  # uniquePartitions, indexPartitions,indexData = getPartitions([[0,0],[0, 1],[1, 1]], shape4, getMasterShape(shape4))
+  # np.testing.assert_array_equal(uniquePartitions, [[0, 0],[1,0]])
+  # np.testing.assert_array_equal(indexPartitions, [0,0,1])
+  # np.testing.assert_array_equal(indexData, [[0,0,0],[0,0,1],[1,0,0]])
+
+
+def test_getMasterSlices():
+  np.testing.assert_array_equal(getMasterSlices((slice(0, 3, None), slice(0, 2, None)), shape4, getMasterShape(shape4)), [[0, 0, 0, 0], [1, 0, 0, 1]])
+
+def test_getPartitionsSlices():
+  partitions = getPartitionsSlices((slice(0, 1, None), slice(0, 10, None)),shape4,getMasterShape(shape4))
+  print(partitions)
+  
+
+
 def test_indexMulti():
   with pytest.raises(Exception) as excinfo:
     indexMulti([0],[0])
@@ -144,10 +159,28 @@ def test_concatenatePartitions():
 
 
 if __name__ == "__main__":
+  test_createIndices()
+  # test_getPartitions()
   # test_getChildShape()
   # test_getMasterShape()
   # test_getMasterIndices()
-  test_getMasterSlices()
+  # test_getMasterSlices()
+  # test_getPartitionsSlices()
+  
   # test_getPartitions()
   # test_indexMulti()
   # test_concatenatePartitions()
+  # a=np.array([[1,0],[5,0]]).T
+  # print(a.shape)
+  # index = np.ravel_multi_index(np.array([[1,0],[4,0]]).T, (5,2))
+  # for i in np.arange(index[0],index[1]+1):
+  #   if(i==index[0]):
+  #     # Start
+  #     None
+  #   elif (i == index[1]+1):
+  #     # Start
+  #     None
+  #   else:
+  #     None
+  #   print(np.array(np.unravel_index(i, (5,2))).T)
+  #
