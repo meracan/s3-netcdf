@@ -1,6 +1,6 @@
 
-nnode = 100000
-ntime = 100
+nnode = 300000
+ntime = 24*30
 nelem = 100000
 nspectra = 1
 nfreq = 1

@@ -1,7 +1,7 @@
 import os
 from netCDF4 import Dataset
 import numpy as np
-from s3netcdf.partitions import getMasterShape,getPartitions
+from s3netcdf.partitions import getMasterShape,getPartitions,indexMulti
 
 
 class GroupPartition(object):
@@ -27,8 +27,8 @@ class GroupPartition(object):
       if(vname=="shape" or vname=="master" or vname=="child"):continue
       dnames = src_group.variables[vname].dimensions
       dimensions = []
-      for dname in dnames:
-        dimensions.append(dict(name=dname, value=len(src_file.dimensions[dname])))
+      for i,dname in enumerate(dnames):
+        dimensions.append(dict(name=dname, value=child[i]))
       
       variable = dict(name=vname, type=src_group.variables[vname].dtype,shape=dnames)
       for attribute in src_group.variables[vname].ncattrs():
@@ -41,42 +41,89 @@ class GroupPartition(object):
     if(size>1E+9):raise ValueError("Array too large")
     
   def __getitem__(self, idx):
-    if isinstance(idx, slice):
-      start = 0 if slice.start is None else slice.start
-      end   = self.shape[0] if slice.stop is None else slice.stop
-      step = 1 if slice.step is None else slice.step
-      size = (end-start) * np.prod(self.shape[1:])
-      self.checkSize(size)
-    elif isinstance( idx, int ):
-      size = np.prod(self.shape[1:])
-      self.checkSize(size)
+    idx = list(idx)
+    vname = idx.pop(0)
+    idx=tuple(idx)
+    if not vname in self.variablesSetup:raise Exception("Variable does not exist")
+    uniquePartitions, indexPartitions,indexData = getPartitions(idx, self.shape, self.master)
+    
+    for i,partition in enumerate(uniquePartitions):
+      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}_{}.nc".format(self.masterName, self.name, vname, partition[0], partition[1]))
+      if not os.path.exists(filepath):
+        raise ValueError("File does not exist")
+      _index = indexData[indexPartitions==i]
       
-    elif isinstance(idx, tuple):
-      for i,t in enumerate(idx):
-        if isinstance(t, slice):
-          start = 0 if slice.start is None else slice.start
-          end = self.shape[i] if slice.stop is None else slice.stop
-          step = 1 if slice.step is None else slice.step
-          size = (end - start) * np.prod(self.shape[slice(i+1)])
-          self.checkSize(size)
-        elif isinstance(t, int):
-          size = np.prod(self.shape[slice(i+1)])
-          self.checkSize(size)
-        elif isinstance(t, list) or isinstance(t, np.ndarray):
-          t = np.array(t)
-          self.checkSize(t.size)
-          if(len(t)>self.shape[i]):raise ValueError("Length of exceeds limit")
-        else:
-          raise TypeError("Invalid argument type.")
-    else:
-      raise TypeError("Invalid argument type.")
+      with Dataset(filepath, "r") as src_file:
+        var = src_file.variables[vname]
+        if(_index.shape[1]==2):
+          return var[_index[:,0],_index[:,1]]
+        if(_index.shape[1]==3):
+          return  var[_index[:,0],_index[:,1],_index[:,2]]
+        if(_index.shape[1]==4):
+          return var[_index[:,0],_index[:,1],_index[:,2],_index[:,3]]
+    
 
   def __setitem__(self, idx,value):
+    
+    if not isinstance(idx,tuple):raise TypeError("Needs variable")
+    idx = list(idx)
+    vname = idx.pop(0)
+    idx=tuple(idx)
+    if not vname in self.variablesSetup:raise Exception("Variable does not exist")
+    
+    uniquePartitions, indexPartitions,indexData = getPartitions(idx, self.shape, self.master)
+    for i,partition in enumerate(uniquePartitions):
+      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}_{}.nc".format(self.masterName, self.name, vname, partition[0], partition[1]))
+      
+      if not os.path.exists(filepath):
+        createNetCDF(filepath,**self.variablesSetup[vname])
+      _index = indexData[indexPartitions==i]
+      
+      if isinstance(value,list) or isinstance(value,np.ndarray):
+        # print(_index[:,0],_index[:,1])
+        # _value = value[_index[:,0],_index[:,1]].reshape(self.child)
+        _value=value
+        # TODO: Change this
+        print(_value.shape)
+        
+      else:
+        _value=value
+      
+      
+      # print(indexData)
+      # print(indexPartitions,indexData)
+      # print(self.child)
+      with Dataset(filepath, "r+") as src_file:
+        # print(src_file.dimensions)
+        var = src_file.variables[vname]
+        if(_index.shape[1]==2):
+          d0=_index[:,0]
+          d1=_index[:,1]
+          if(np.min(_index[:,0])==np.max(_index[:,0])):
+            d0=_index[:,0][0]
+          if(np.min(_index[:,0])==0 and np.max(_index[:,0])==self.child[0]-1):
+            d0=slice(None,None,None)
+          if(np.min(_index[:,1])==0 and np.max(_index[:,1])==self.child[1]-1):
+            d1=slice(None,None,None)
+            _value = value[i]
+          
+          # if isinstance(value,list) or isinstance(value,np.ndarray):
+            # if(value.shape!=(d0,d1)):
+              # value=value.reshape((self.child[0],self.child[1]))
+          # print(self.child,_value.shape)
+          print(d0,d1)
+          var[d0,d1]=_value
+        if(_index.shape[1]==3):
+          var[_index[:,0],_index[:,1],_index[:,2]]=_value
+        if(_index.shape[1]==4):
+          var[_index[:,0],_index[:,1],_index[:,2],_index[:,3]]=_value  
+        
+    # print(indexPartitions,indexData)
     None
     
   
-  def write(self,vname):
-    return GroupArray(self)
+  # def write(self,vname):
+    # return GroupArray(self)
     # data = np.array(data)
     # indices = np.array(indices)
     # if (len(self.shape) != len(indices.shape) or len(indices) != len(data)):
@@ -169,7 +216,7 @@ def createVariables(src_base,variables,strshape=None):
   for var in variables:
     if strshape is None and var["shape"] is None:raise Exception("Variable needs a shape")
     shape = strshape if strshape is not None else var["shape"]
-    _var = src_base.createVariable(var["name"], var["type"], shape)
+    _var = src_base.createVariable(var["name"],var["type"], shape,zlib=True,least_significant_digit=3)
     if "units" in var:_var.units = var["units"]
     if "standard_name" in var:_var.standard_name = var["standard_name"]
     if "long_name" in var:_var.long_name = var["long_name"]
@@ -196,7 +243,7 @@ def createGroupPartition(src_base,folder,name,variables,strshape):
   child = src_group.createVariable("child", "i4", ("nchild",))
   
   shape[:]=intshape
-  master[:],child[:] = getMasterShape(intshape, return_childShape=True, maxSize=4)
+  master[:],child[:] = getMasterShape(intshape, return_childShape=True, maxSize=1000)
   
 def writeVariable(src_file,name,data,indices=None):
   var = src_file.variables[name]

@@ -9,8 +9,9 @@ import numpy as np
 shape1 = [3, 7]
 shape2 = [8, 16384]  # 1MB
 shape3 = [8, 16385]  # >1MB
-# shape4 = [2, 131073]  # >1MB on last column
-shape4 = [24*365*15, 300000]  # >1MB on last column
+shape4 = [2, 131073]  # >1MB on last column
+shape5 = [2, 10,5,5]  # >1MB on last column
+
 
 data1 = np.reshape(np.arange(shape1[0] * shape1[1]), shape1)
 data2 = np.reshape(np.arange(shape2[0] * shape2[1], dtype=np.float64), shape2)
@@ -31,18 +32,25 @@ def test_getMasterShape():
   np.testing.assert_array_equal(getMasterShape(shape4), [2, 2, 1, 65537])
 
 def test_getMasterIndices():
-  np.testing.assert_array_equal(getMasterIndices([1, 0], shape1, getMasterShape(shape1)), [[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([1, 0],shape1,getMasterShape(shape1)), [[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([[0,0],[0, 1],[1, 0]], shape1, getMasterShape(shape1)), [[0, 0, 0, 0],[0, 0,0 , 1],[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([1, 0], shape3, getMasterShape(shape3)), [[0, 0, 1, 0]])
-  np.testing.assert_array_equal(getMasterIndices([6, 0], shape3, getMasterShape(shape3)), [[1, 0, 2, 0]])
-  np.testing.assert_array_equal(getMasterIndices([1, 0], shape4, getMasterShape(shape4)), [[0, 1, 0, 65536]])
-  np.testing.assert_array_equal(getMasterIndices([1, 1], shape4, getMasterShape(shape4)), [[1, 0, 0, 0]])
+  np.testing.assert_array_equal(getMasterIndices((1,0), shape1, getMasterShape(shape1)), [[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices((0,slice(0,2)),shape1,getMasterShape(shape1)), [[0, 0, 0, 0],[0, 0, 0, 1]])
+  # np.testing.assert_array_equal(getMasterIndices((1,0), shape1, getMasterShape(shape1)), [[0, 0, 0, 0],[0, 0,0 , 1],[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices((1, 0), shape3, getMasterShape(shape3)), [[0, 0, 1, 0]])
+  np.testing.assert_array_equal(getMasterIndices((6, 0), shape3, getMasterShape(shape3)), [[1, 0, 2, 0]])
+  np.testing.assert_array_equal(getMasterIndices((1, 0), shape4, getMasterShape(shape4)), [[0, 1, 0, 65536]])
+  np.testing.assert_array_equal(getMasterIndices((0, 0,0,0), shape5, getMasterShape(shape4)), [[[[0, 0, 0, 0]]]])
 
 def test_createIndices():
-  indices = createIndices((2,100),(0))
+  shape = (2,5,3,4)
+  indices = createIndices(shape,(1))
+  meshgrid = np.meshgrid(*indices,indexing="ij")
+  index = np.ravel_multi_index(meshgrid, shape)
+  r = np.array(np.unravel_index(index, (10,1,1,1,1,1,3,4)))
   
-  # np.mgrid[0:10, 0:10, 0:10]
+  
+  # print(np.concatenate(np.meshgrid(*indices,indexing="ij")).transpose(1,2,0).reshape((np.prod(np.array(shape)),3)))
+  # print(np.concatenate(np.meshgrid(indices[0],indices[1]),axis=1))
+  # print(np.mgrid[[1,2],[1,2]])
   None
   
 def test_getPartitions():
@@ -159,11 +167,11 @@ def test_concatenatePartitions():
 
 
 if __name__ == "__main__":
-  test_createIndices()
+  # test_createIndices()
   # test_getPartitions()
-  # test_getChildShape()
-  # test_getMasterShape()
-  # test_getMasterIndices()
+  test_getChildShape()
+  test_getMasterShape()
+  test_getMasterIndices()
   # test_getMasterSlices()
   # test_getPartitionsSlices()
   

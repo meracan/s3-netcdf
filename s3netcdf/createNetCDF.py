@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 
 
-from s3netcdf.partitions import getMasterShape,getPartitions
+from s3netcdf.partitions import getMasterShape
 from s3netcdf.netcdf import createNetCDF,writeMetadata,GroupPartition
 from functools import wraps
 
@@ -55,23 +55,56 @@ class NetCDF2D(object):
     self.nc.close()
     self.nca.close()
 
-
-
-  @checkNetCDF
-  def write(self,vname,gname=None):
-    
+  def __getitem__(self, idx):
+    if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
+    idx = list(idx)
+    gname = idx.pop(0)
     if(gname is None):
+      vname = idx.pop(1)
       src_file = self.nc
       if not (vname in src_file.variables):raise Exception("Variable does not exist")
-      return self.nc.variables[vname]
+      var = self.nc.variables[vname]
+      return var[idx]
     else:
       src_file = self.nca
-      if not gname in src_file.groups:
-        raise Exception("Group does not exist")
+      if not gname in src_file.groups:raise Exception("Group does not exist")
       src_group = src_file.groups[gname]
-      if not vname in src_group.variables:raise Exception("Variable does not exist")
       groupPartition = self.groupPartitions[src_group.name]
-      return groupPartition.write(vname)
+      return groupPartition[tuple(idx)]
+      
+      
+  def __setitem__(self, idx,value):
+    if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
+    idx = list(idx)
+    gname = idx.pop(0)
+    if(gname is None):
+      vname = idx.pop(1)
+      src_file = self.nc
+      if not (vname in src_file.variables):raise Exception("Variable does not exist")
+      var = self.nc.variables[vname]
+      var[idx]=value
+    else:
+      src_file = self.nca
+      if not gname in src_file.groups:raise Exception("Group does not exist")
+      src_group = src_file.groups[gname]
+      groupPartition = self.groupPartitions[src_group.name]
+      groupPartition[tuple(idx)]=value
+      
+  
+  # def write(self,vname,gname=None):
+    
+  #   if(gname is None):
+  #     src_file = self.nc
+  #     if not (vname in src_file.variables):raise Exception("Variable does not exist")
+  #     return self.nc.variables[vname]
+  #   else:
+  #     src_file = self.nca
+  #     if not gname in src_file.groups:
+  #       raise Exception("Group does not exist")
+  #     src_group = src_file.groups[gname]
+  #     if not vname in src_group.variables:raise Exception("Variable does not exist")
+  #     groupPartition = self.groupPartitions[src_group.name]
+  #     return groupPartition.write(vname)
       
 
  
