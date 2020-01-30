@@ -35,6 +35,26 @@ class GroupPartition(object):
         variable[attribute] = getattr(src_group.variables[vname],attribute)
       self.variablesSetup[vname]=dict(dimensions=dimensions,variables=[variable])
 
+  def _master2GI(self,array):
+    return np.concatenate(np.ravel_multi_index(array, self.master))
+  def _original2GI(self,array):
+    return np.concatenate(np.ravel_multi_index(array, self.shape))
+  def _GI2master(self,array):
+    return np.array(np.unravel_index(array, self.master)).T
+  def _GI2original(self,array):
+    return np.array(np.unravel_index(array, self.shape)).T
+  
+  def _xx():
+    GI = self._original2GI()
+    partitions = self._GI2master()
+    
+    # [:,0:10,0:10,0:10]=>
+    #  [0,0:4,0:4,0:4]
+    #  [0,5:9,5:9,5:9]
+    
+    # partitions => get unique
+    #
+    
 
   
   def checkSize(self,size):

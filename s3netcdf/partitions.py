@@ -57,39 +57,14 @@ def getMasterShape(dataShape,return_childShape=False,**kwargs):
   if(return_childShape):return masterShape, fileShape
   return masterShape
 
-# def getMasterIndices(indices,dataShape,masterShape):
-#   """
-#   TODO: Change description
-#   :param indices:
-#   :param dataShape:
-#   :param masterShape:
-#   :return:
-#   """
-  
-#   indices = np.array(indices)
-#   if(len(indices.shape)==1):indices=indices[np.newaxis,:]
-#   indices = indices.T
-#   index = np.ravel_multi_index(indices, dataShape)
-#   return np.array(np.unravel_index(index, masterShape)).T
-
-def getMasterIndices(idx,shape,masterShape):
-  indices = createIndices(shape,idx)
-  
-  meshgrid = np.meshgrid(*indices,indexing="ij")
-  index = np.ravel_multi_index(meshgrid, shape)
-  index = np.concatenate(index)
-  return np.array(np.unravel_index(index, masterShape)).T
-
-def checkSize(size,maxSize=1E+9):
-    if(size>1E+9):raise ValueError("Array too large")
-
-def __getIndices(shape,idx,i=0,canTuple=True):
+def __getIndices(idx,shape,i=0,canTuple=True):
   if isinstance(idx, slice):
     start = 0 if idx.start is None else idx.start
-    end = shape[i] if idx.stop is None else idx.stop
+    stop = shape[i] if idx.stop is None else idx.stop
     step = 1 if idx.step is None else idx.step
-    if (end > shape[i]): raise ValueError("Exceeds limit")
-    return np.arange(start, end,step, dtype="i4")
+    if (stop > shape[i]): raise ValueError("Exceeds limit")
+    print(start,stop,step)
+    return np.arange(start, stop,step, dtype="i4")
   elif isinstance(idx, int):
     if (idx >= shape[i]): raise ValueError("Exceeds limit")
     return np.array([idx],dtype="i4")
@@ -99,37 +74,42 @@ def __getIndices(shape,idx,i=0,canTuple=True):
     if not (canTuple):raise TypeError("Invalid argument type.")
     array=[]
     for j, t in enumerate(idx):
-      array.append(__getIndices(shape,t,j,canTuple=False))
+      array.append(__getIndices(t,shape,j,canTuple=False))
     return array
   else:
     raise TypeError("Invalid argument type.")  
 
-def createIndices(shape,idx):
-  array = __getIndices(shape,idx,0,canTuple=True)
+def createIndices(idx,shape):
+  array = __getIndices(idx,shape,0,canTuple=True)
   if not isinstance(array, list):array=[array]
   for j in range(len(array), len(shape)):
     array.append(np.arange(0, shape[j], dtype="i4"))
   array = np.array(array) 
-  checkSize(np.prod(array.shape))
   return array
 
-# def getPartitions(indices, dataShape,masterShape):
-#   """
-#   TODO: Change description
-#   :param indices:
-#   :param dataShape:
-#   :param masterShape:
-#   :return:
-#   """
-#   masterIndices = getMasterIndices(indices, dataShape,masterShape)
-#   n = len(dataShape)
-#   allPartitions=masterIndices[:, :n]
-#   uniquePartitions,indexPartitions = np.unique(allPartitions,axis=0,return_inverse=True)
-#   indexDataFile = masterIndices[:, n:]
-#   indexData = np.concatenate((indexPartitions[:, None], indexDataFile), axis=1)
-#   return uniquePartitions,indexPartitions,indexData
+def _getMasterIndices(indices,shape,masterShape):
+  meshgrid = np.meshgrid(*indices,indexing="ij")
+  index = np.ravel_multi_index(meshgrid, shape)
+  index = np.concatenate(index)
+  return np.array(np.unravel_index(index, masterShape)).T
 
-def getPartitions(idx, shape,masterShape):
+def getMasterIndices(idx,shape,masterShape):
+  indices = createIndices(idx,shape)
+  limits=[]
+  n = len(shape)
+  for i,step in enumerate(masterShape[n:]):
+    limits.append(np.arange(np.min(indices[i]),np.max(indices[i]),step))
+  limits=np.array(limits)
+
+  masterLimits = _getMasterIndices(limits,shape,masterShape)
+  
+  return indices,masterLimits
+
+def checkSize(size,maxSize=1E+9):
+    if(size>1E+9):raise ValueError("Array too large")
+
+
+def getPartitions(idx, shape,masterShape,f):
   """
   TODO: Change description
   :param indices:
@@ -138,14 +118,18 @@ def getPartitions(idx, shape,masterShape):
   :return:
   """
   
-  masterIndices = getMasterIndices(idx, shape,masterShape)
+  indices,masterLimits = getMasterIndices(idx, shape,masterShape)
   n = len(shape)
-  allPartitions=masterIndices[:, :n]
+  allPartitions=masterLimits[:, :n]
   uniquePartitions,indexPartitions = np.unique(allPartitions,axis=0,return_inverse=True)
-  indexDataFile = masterIndices[:, n:]
-  indexData = np.concatenate((indexPartitions[:, None], indexDataFile), axis=1)
+  masterIndices = _getMasterIndices(indices,shape,masterShape)
+
+  for part in uniquePartitions:
+    idata=np.all(masterIndices[:,:n] == part[None,:], axis=1)
+    ipart = masterIndices[np.where(idata)[0]][:,n:]
+    f(part,idata,ipart)
+    
   
-  return uniquePartitions,indexPartitions,indexDataFile
 
 # def getMasterSlices(idx,dataShape,masterShape):
 #   """
