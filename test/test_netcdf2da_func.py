@@ -1,10 +1,7 @@
 import pytest
-import timeit
-from s3netcdf.partitions import getChildShape,\
-  getMasterShape,getMasterIndices,getPartitions,concatenatePartitions,indexMulti,\
-  createIndices
-  # getMasterSlices,getPartitionsSlices,
-
+from s3netcdf.netcdf2da_func import parseDescritor,\
+  getIndices,getMasterIndices,getPartitions,dataWrapper
+  
 import numpy as np
 
 shape1 = [3, 7]

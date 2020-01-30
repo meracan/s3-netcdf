@@ -4,15 +4,13 @@ from netCDF4 import num2date, date2num
 import numpy as np
 from datetime import datetime, timedelta
 
-
-
-from s3netcdf.partitions import getMasterShape
-from s3netcdf.netcdf import createNetCDF,writeMetadata,GroupPartition
+from s3netcdf.netcdf2d_func import createNetCDF,writeMetadata,getMasterShape
+from s3netcdf.netcdf2da import NetCDF2Da
 from functools import wraps
 
 class NetCDF2D(object):
   def __init__(self, name,folder,nc,nca,metadata):
-    self.groupPartitions = {}
+    self.netcdfa = {}
     self.name = name
     self.folder = folder
     self.metadata = metadata
@@ -32,13 +30,6 @@ class NetCDF2D(object):
     if os.path.exists(self.ncPath) and os.path.exists(self.ncaPath): return True
     return False
   
-  def checkNetCDF(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-      if self.isExist():return func(self,*args, **kwargs)
-      raise Exception("NetCDF files does not exist. Please create one using the function create")
-    return wrapper
-  
   def create(self,nc,nca):
     if(self.isExist()):return
     createNetCDF(self.ncPath,folder=self.folder,metadata=self.metadata,**nc)
@@ -49,7 +40,7 @@ class NetCDF2D(object):
     self.nca = Dataset(self.ncaPath, "r+")
  
     for group in self.nca.groups:
-      self.groupPartitions[group] = GroupPartition(self.folder, self.nca, group,self.name)
+      self.netcdfa[group] = NetCDF2Da(self.folder, self.nca, group,self.name)
   
   def close(self):
     self.nc.close()
@@ -69,8 +60,8 @@ class NetCDF2D(object):
       src_file = self.nca
       if not gname in src_file.groups:raise Exception("Group does not exist")
       src_group = src_file.groups[gname]
-      groupPartition = self.groupPartitions[src_group.name]
-      return groupPartition[tuple(idx)]
+      netcdfa = self.netcdfa[src_group.name]
+      return netcdfa[tuple(idx)]
       
       
   def __setitem__(self, idx,value):
@@ -87,24 +78,5 @@ class NetCDF2D(object):
       src_file = self.nca
       if not gname in src_file.groups:raise Exception("Group does not exist")
       src_group = src_file.groups[gname]
-      groupPartition = self.groupPartitions[src_group.name]
-      groupPartition[tuple(idx)]=value
-      
-  
-  # def write(self,vname,gname=None):
-    
-  #   if(gname is None):
-  #     src_file = self.nc
-  #     if not (vname in src_file.variables):raise Exception("Variable does not exist")
-  #     return self.nc.variables[vname]
-  #   else:
-  #     src_file = self.nca
-  #     if not gname in src_file.groups:
-  #       raise Exception("Group does not exist")
-  #     src_group = src_file.groups[gname]
-  #     if not vname in src_group.variables:raise Exception("Variable does not exist")
-  #     groupPartition = self.groupPartitions[src_group.name]
-  #     return groupPartition.write(vname)
-      
-
- 
+      netcdfa = self.netcdfa[src_group.name]
+      netcdfa[tuple(idx)]=value
