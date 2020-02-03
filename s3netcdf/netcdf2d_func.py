@@ -2,71 +2,108 @@ import os
 from netCDF4 import Dataset
 import numpy as np
 
-def createNetCDF(filepath,folder=None,metadata=None,dimensions=None,groups=None,variables=None):
-    if dimensions is None: dimensions = []
-    if groups is None: groups = []
-    if variables is None: variables = []
-    if metadata is None: metadata = dict()
-    with Dataset(filepath, "w") as src_file:
-      writeMetadata(src_file,**metadata)
-      # Dimensions
-      for dimension in dimensions:
-        src_file.createDimension(dimension['name'], dimension['value'])
+def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=None,groups=None,size=1.0):
+  """
+  Create NetCDF
+  
+  Parameters
+  ----------
+  filePath: str,path
+  folder: str,optional.
+  metadata:object,optional.
+  dimensions:object,optional.
+  variables:object,optional.
+  groups:object,optional.
+  size:object,optional.
+  
+  Notes
+  -----
+  
+  
+  """  
+  if folder is None: folder = os.getcwd()
+  if metadata is None: metadata = dict()
+  if dimensions is None: dimensions = []
+  if variables is None: variables = []
+  if groups is None: groups = []
+  
+  with Dataset(filePath, "w") as src_file:
+    # Write metadata
+    if "title" in metadata: src_file.title = metadata["title"]
+    if "institution" in metadata: src_file.institution = metadata["institution"]
+    if "source" in metadata: src_file.source = metadata["source"]
+    if "history" in metadata: src_file.history = metadata["history"]
+    if "references" in metadata: src_file.references = metadata["references"]
+    if "comment" in metadata: src_file.comment = metadata["comment"]
+    
+    
+    for dimension in dimensions:
+      if not 'name' in dimension:raise Exception("Dimension needs a name")
+      if not 'value' in dimension:raise Exception("Dimension needs a value")
+      src_file.createDimension(dimension['name'], dimension['value'])
+    
+    createVariables(src_file,variables)
+
+    for group in groups:
+      if not 'name' in group:raise Exception("Group needs a name")
+      if not 'variables' in group:raise Exception("Group needs variables")
+      if not 'dimensions' in group:raise Exception("Group needs dimensions")
       
-      # Groups and Variables
-      for group in groups:
-        createNetCDF2Da(src_file,folder,**group)
-      createVariables(src_file,variables)
+      src_group = src_file.createGroup(group["name"])
+      groupPath = os.path.join(folder, group["name"])
+      if not os.path.exists(groupPath): os.makedirs(groupPath)
 
-def writeMetadata(src_file,title=None, institution=None, source=None, history=None, references=None, comment=None):
-  if title is not None: src_file.title = title
-  if institution is not None: src_file.institution = institution
-  if source is not None: src_file.source = source
-  if history is not None: src_file.history = history
-  if references is not None: src_file.references = references
-  if comment is not None: src_file.comment = comment
+      shapeArray=[]
+      for dimension in group['dimensions']:
+        if not dimension in src_file.dimensions:raise Exception("Dimension does not exist")
+        shapeArray.append(len(src_file.dimensions[dimension]))
+      shapeArray = np.array(shapeArray,dtype="i4")
 
-def createVariables(src_base,variables,strshape=None):
+      nshape = len(shapeArray)
+      src_group.createDimension("nshape", nshape)
+      src_group.createDimension("nmaster", nshape * 2)
+      src_group.createDimension("nchild", nshape)
+      shape = src_group.createVariable("shape", "i4", ("nshape",))
+      master = src_group.createVariable("master", "i4", ("nmaster",))
+      child = src_group.createVariable("child", "i4", ("nchild",))
+
+      shape[:]=shapeArray
+      master[:],child[:] = getMasterShape(shapeArray, return_childShape=True, size=size)
+      
+      createVariables(src_group,group['variables'],group['dimensions'])
+      
+
+def createVariables(src_file,variables,dimensions=None):
+  """
+  Create variables in a NetCDF file
+  
+  Parameters
+  ----------
+  src_file: NetCDF.Dataset
+  variables:[object], list of objects
+    name:str 
+    type:str
+    dimensions:[str],list of str 
+    units:str,optional
+    standard_name:str,optional
+    long_name:str,optional
+    calendar:str,optional
+  dimensions: default dimensions, optional
+  """  
   for var in variables:
-    if strshape is None and var["shape"] is None:raise Exception("Variable needs a shape")
-    shape = strshape if strshape is not None else var["shape"]
-    _var = src_base.createVariable(var["name"],var["type"], shape,zlib=True,least_significant_digit=3)
+    if not 'name' in var:raise Exception("Variable need a name")
+    if not 'type' in var:raise Exception("Variable need a type")
+    if dimensions is None:
+      if not 'dimensions' in var:raise Exception("Variable need dimensions")
+      dimensions = var['dimensions']
+    
+    _var = src_file.createVariable(var["name"],var["type"], dimensions,zlib=True,least_significant_digit=3)
     if "units" in var:_var.units = var["units"]
     if "standard_name" in var:_var.standard_name = var["standard_name"]
     if "long_name" in var:_var.long_name = var["long_name"]
     if "calendar" in var:_var.calendar = var["calendar"]  
 
-def createNetCDF2Da(src_base,folder,name,variables,strshape):
-  src_group = src_base.createGroup(name)
-  groupPath = os.path.join(folder, name)
-  if not os.path.exists(groupPath): os.makedirs(groupPath)
-  
-  createVariables(src_group,variables,strshape)
-  
-  intshape=[]
-  for ishape in strshape:
-    intshape.append(len(src_base.dimensions[ishape]))
-  intshape = np.array(intshape,dtype="i4")
-  
-  nshape = len(intshape)
-  src_group.createDimension("nshape", nshape)
-  src_group.createDimension("nmaster", nshape * 2)
-  src_group.createDimension("nchild", nshape)
-  shape = src_group.createVariable("shape", "i4", ("nshape",))
-  master = src_group.createVariable("master", "i4", ("nmaster",))
-  child = src_group.createVariable("child", "i4", ("nchild",))
-  
-  shape[:]=intshape
-  master[:],child[:] = getMasterShape(intshape, return_childShape=True, maxSize=1000)
-  
-def writeVariable(src_file,name,data,indices=None):
-  var = src_file.variables[name]
-  if indices is None:
-    var[:] = data
-  else:
-    var[indices] = data
-
-def getChildShape(shape,dtype="f4",size=1):
+def getChildShape(shape,dtype="f4",size=1.0):
   """
   Find new shape based on array size in bytes
   
@@ -158,3 +195,187 @@ def getMasterShape(shape,return_childshape=False,**kwargs):
   mastershape = np.insert(childshape, 0, partitions)
   if(return_childshape):return mastershape, childshape
   return mastershape
+  
+
+
+def parseDescritor(idx,shape,i=0,canTuple=True):
+  """
+  Parsing descriptor with specific shape
+  
+  Parameters
+  ----------
+  idx: slice,int,list,ndarray or tuple.
+  shape: ndarray (1D)
+  i:int,optional.
+    Default=0
+    Axis position,starts on the left
+  canTuple:bool, optional.
+    Default is True.
+    Can only tuple once. (0,0)=Good;(0,(0))=Bad, will raise an error
+    
+  Returns
+  -------
+  out : ndarray or list
+  
+  Notes
+  -----
+  First axis gets priority.
+  
+  Examples
+  --------
+  TODO
+  """
+  
+  if isinstance(idx, slice):
+    start = 0 if idx.start is None else idx.start
+    stop = shape[i] if idx.stop is None else idx.stop
+    step = 1 if idx.step is None else idx.step
+    if (start < 0 or stop > shape[i]): raise ValueError("Exceeds limit")
+    return np.arange(start, stop,step, dtype="i4")
+  elif isinstance(idx, int):
+    if (idx < 0 or idx >= shape[i]): raise ValueError("Exceeds limit")
+    return np.array([idx],dtype="i4")
+  elif isinstance(idx, list) or isinstance(idx, np.ndarray):
+    return np.array(idx)
+  elif isinstance(idx, tuple):
+    if not (canTuple):raise TypeError("Invalid argument type.")
+    array=[]
+    for j, t in enumerate(idx):
+      array.append(parseDescritor(t,shape,j,canTuple=False))
+    return array
+  else:
+    raise TypeError("Invalid argument type.")  
+
+def getIndices(idx,shape):
+  """
+  Parsing descriptors and creating a index table
+  
+  Parameters
+  ----------
+  idx: slice,int,list,ndarray or tuple.
+  shape: ndarray (1D)
+  
+  Returns
+  -------
+  out : ndarray
+  
+  Notes
+  -----
+  First axis gets priority.
+  
+  Examples
+  --------
+  TODO
+  """
+  
+  array = parseDescritor(idx,shape,0,canTuple=True)
+  if not isinstance(array, list):array=[array]
+  for i in range(len(array), len(shape)):
+    # Need to fill the remainder of the array if not provided
+    array.append(np.arange(0, shape[i], dtype="i4"))
+  return np.array(array) 
+
+def getMasterIndices(indices,shape,masterShape):
+  """
+  Get indices in master format from data
+  
+  Parameters
+  ----------
+  indices:  ndarray
+  shape: ndarray (1D)
+    Original data shape
+  masterShape: ndarray (1D)
+    Master shape
+  
+  Returns
+  -------
+  out : ndarray
+  
+  Notes
+  -----
+  TODO
+  
+  Examples
+  --------
+  TODO
+  """ 
+  meshgrid = np.meshgrid(*indices,indexing="ij")
+  index = np.ravel_multi_index(meshgrid, shape)
+  index = np.concatenate(index)
+  return np.array(np.unravel_index(index, masterShape)).T
+
+def getPartitions(indices,shape,masterShape):
+  """
+  Find partitions based on indices
+  
+  Parameters
+  ----------
+  indices:  ndarray
+  shape: ndarray (1D)
+    Original data shape
+  masterShape: ndarray (1D)
+    Master shape
+  
+  Returns
+  -------
+  out : ndarray
+  
+  Notes
+  -----
+  TODO
+  
+  Examples
+  --------
+  TODO
+  """    
+  limits=[]
+  n = len(shape)
+  for i,step in enumerate(masterShape[n:]):
+    if(np.min(indices[i])==np.max(indices[i])):
+      limits.append(np.array(0,dtype="int32"))
+    else:
+      limits.append(np.arange(np.min(indices[i]),np.max(indices[i]),step))
+  limits=np.array(limits)
+  masterLimits = getMasterIndices(limits,shape,masterShape)
+  allPartitions=masterLimits[:, :n]
+  uniquePartitions = np.unique(allPartitions,axis=0)
+  
+  return uniquePartitions
+
+def dataWrapper(idx, shape,masterShape,f):
+  """
+  Data wrapper
+  Gets proper partitions, indices in the master array from the data array (idx)
+  The callback function loops on every partition file.
+  
+  Parameters
+  ----------
+  idx:  ndarray
+  shape: ndarray (1D)
+    Original data shape
+  masterShape: ndarray (1D)
+    Master shape
+  f: callback function (part,idata,iparts)
+  Returns
+  -------
+  out : ndarray
+  
+  Notes
+  -----
+  TODO
+  
+  Examples
+  --------
+  TODO
+  """    
+  
+  n = len(shape)
+  indices = getIndices(idx,shape)
+  partitions = getPartitions(indices, shape,masterShape)
+  
+  masterIndices = getMasterIndices(indices,shape,masterShape)
+  
+  for part in partitions:
+    idata=np.all(masterIndices[:,:n] == part[None,:], axis=1)
+    ipart = masterIndices[np.where(idata)[0]][:,n:]
+    f(part,idata,ipart)

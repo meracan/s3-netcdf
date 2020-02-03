@@ -4,49 +4,103 @@ from netCDF4 import num2date, date2num
 import numpy as np
 from datetime import datetime, timedelta
 
-from s3netcdf.netcdf2d_func import createNetCDF,writeMetadata,getMasterShape
-from s3netcdf.netcdf2da import NetCDF2Da
-from functools import wraps
+from .netcdf2d_func import createNetCDF,getMasterShape
+from .netcdf2dGroup import NetCDF2DGroup
+
 
 class NetCDF2D(object):
-  def __init__(self, name,folder,nc,nca,metadata):
-    self.netcdfa = {}
-    self.name = name
-    self.folder = folder
-    self.metadata = metadata
-    
-    if folder is None: folder = os.getcwd()
-    self.folder =folder= os.path.join(folder, name)
+  """
+  A NetCDF class
   
-    if not os.path.exists(folder):
-      os.makedirs(folder)
+  Parameters
+  ----------
+  object:
+    name : str, Name of cdffile
+    folder: str,path
+    metadata : 
+    TODO s3: S3 bucket
+    nc:object
+      dimensions:[obj]
+        name:str
+        value:int
+      variables:[obj]
+        name:str
+        type:str
+        dimensions:[str],
+        etc..
+        
+    nca:object
+      size:float,optional
+        Max partition size (MB)
+      dimensions:[obj]
+        name:str
+        value:int
+      groups:[obj]
+        name:str,
+        variables:[obj]
+          name:str
+          type:str
+          dimensions:[str],
+          etc..
+  
+  Attributes
+  ----------
+  name :str, Name of NetCDF
+  folder :path
+  ncPath : path
+    File contains nodes, connectivity table and static variables 
+  ncaPath :path
+    Master file, contains information about master and child netcdf files
+  netcdfGroups : [NetCDF2DGroup]
+    Contains information on different groups (i.e "s","t","ss","st")
+    "s" = Spatial oriented
+    "t" = Temporal oriented
+    "ss" = Spectral Spatial oriented
+    "st" = Spectral Temporal oriented
+  """  
+  def __init__(self, obj):
+    if not "name" in obj: raise Exception("NetCDF2D needs a name")
     
+    self.netcdfGroups = {}
+    self.name = name = obj["name"]
+    folder = obj["folder"] if "folder" in obj else os.getcwd()
+    self.folder = folder= os.path.join(folder, name)
+  
+    if not os.path.exists(folder): os.makedirs(folder)
+    
+    self.metadata = obj["metadata"] if "metadata" in obj else dict()
     self.ncPath = os.path.join(folder, "{}.nc".format(name))
     self.ncaPath = os.path.join(folder, "{}.nca".format(name))
-    self.create(nc,nca)
-    self.open()
-  
-  def isExist(self):
-    if os.path.exists(self.ncPath) and os.path.exists(self.ncaPath): return True
-    return False
-  
-  def create(self,nc,nca):
-    if(self.isExist()):return
-    createNetCDF(self.ncPath,folder=self.folder,metadata=self.metadata,**nc)
-    createNetCDF(self.ncaPath,folder=self.folder,metadata=self.metadata,**nca)
     
+    # TODO: Check S3, if exist, download 
+    if os.path.exists(self.ncPath) and os.path.exists(self.ncaPath):
+      self.open()
+    else:
+      self.create(obj)
+    
+  def create(self,obj):
+      if not "nc" in obj: raise Exception("NetCDF2D needs a nc object")
+      if not "nca" in obj: raise Exception("NetCDF2D needs a nca object")
+      createNetCDF(self.ncPath,folder=self.folder,metadata=self.metadata,**obj["nc"])
+      createNetCDF(self.ncaPath,folder=self.folder,metadata=self.metadata,**obj["nca"])  
+  
   def open(self):
     self.nc = Dataset(self.ncPath, "r+")
     self.nca = Dataset(self.ncaPath, "r+")
  
     for group in self.nca.groups:
-      self.netcdfa[group] = NetCDF2Da(self.folder, self.nca, group,self.name)
+      self.netcdfGroups[group] = NetCDF2DGroup(self.folder, self.nca, group,self.name)
   
   def close(self):
     self.nc.close()
     self.nca.close()
 
   def __getitem__(self, idx):
+    """
+    Needs atleast two axes, name of group and variable.
+     i.e: ["s","u"]
+          [None,"f"]
+    """
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
     idx = list(idx)
     gname = idx.pop(0)
@@ -60,11 +114,16 @@ class NetCDF2D(object):
       src_file = self.nca
       if not gname in src_file.groups:raise Exception("Group does not exist")
       src_group = src_file.groups[gname]
-      netcdfa = self.netcdfa[src_group.name]
-      return netcdfa[tuple(idx)]
+      netcdfGroup = self.netcdfGroups[src_group.name]
+      return netcdfGroup[tuple(idx)]
       
       
   def __setitem__(self, idx,value):
+    """
+    Needs atleast two axes, name of group and variable.
+     i.e: ["s","u"]
+          [None,"f"]
+    """    
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
     idx = list(idx)
     gname = idx.pop(0)
@@ -73,10 +132,10 @@ class NetCDF2D(object):
       src_file = self.nc
       if not (vname in src_file.variables):raise Exception("Variable does not exist")
       var = self.nc.variables[vname]
-      var[idx]=value
+      var[tuple(idx)]=value
     else:
       src_file = self.nca
       if not gname in src_file.groups:raise Exception("Group does not exist")
       src_group = src_file.groups[gname]
-      netcdfa = self.netcdfa[src_group.name]
-      netcdfa[tuple(idx)]=value
+      netcdfGroup = self.netcdfGroups[src_group.name]
+      netcdfGroup[tuple(idx)]=value

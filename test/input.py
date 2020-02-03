@@ -18,9 +18,10 @@ spectravar = [
 ]
 
 
-intput1 = dict(
+Intput = dict(
   name="test",
   folder=None,
+  s3="",
   metadata=dict(
     title="Mytitle"
   ),
@@ -32,13 +33,14 @@ intput1 = dict(
       dict(name="nelem" ,value=nelem),
     ],
     variables=[
-      dict(name="b" ,type="f4" ,shape=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
-      dict(name="lat" ,type="f8" ,shape=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
-      dict(name="lng" ,type="f8" ,shape=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
-      dict(name="elem" ,type="i4" ,shape=["nelem"] ,units="m" ,standard_name="" ,long_name=""),
-      dict(name="time" ,type="f8" ,shape=["ntime"] ,units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
+      dict(name="b" ,type="f4" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+      dict(name="lat" ,type="f8" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+      dict(name="lng" ,type="f8" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+      dict(name="elem" ,type="i4" ,dimensions=["nelem"] ,units="m" ,standard_name="" ,long_name=""),
+      dict(name="time" ,type="f8" ,dimensions=["ntime"] ,units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
     ]),
   nca = dict(
+    size=1.0,
     dimensions = [
       dict(name="ntime" ,value=ntime),
       dict(name="nnode" ,value=nnode),
@@ -47,10 +49,10 @@ intput1 = dict(
       dict(name="ndir" ,value=ndir),
     ],
     groups=[
-      dict(name="s" ,strshape=["ntime", "nnode"] ,variables=vars),
-      dict(name="t" ,strshape=["nnode" ,"ntime"] ,variables=vars),
-      dict(name="ss" ,strshape=["ntime", "nspectra", "nfreq", "ndir"] ,variables=spectravar),
-      dict(name="st" ,strshape=["nspectra" ,"ntime", "nfreq", "ndir"] ,variables=spectravar)
+      dict(name="s" ,dimensions=["ntime", "nnode"] ,variables=vars),
+      dict(name="t" ,dimensions=["nnode" ,"ntime"] ,variables=vars),
+      dict(name="ss" ,dimensions=["ntime", "nspectra", "nfreq", "ndir"] ,variables=spectravar),
+      dict(name="st" ,dimensions=["nspectra" ,"ntime", "nfreq", "ndir"] ,variables=spectravar)
     ]
   )
 )
