@@ -95,32 +95,24 @@ class NetCDF2DGroup(object):
     """    
     vname,idx = self.__checkVariable(idx)
     
-    def f(part,idata,ipart,data):
+    array=[]
+    def f(part,idata,ipart):
       strpart = "_".join(part.astype(str))
       filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.masterName, self.name, vname, strpart))
       
       # TODO :check s3, dowload
       if not os.path.exists(filepath):raise Exception("File does not exist")
       
-
+      
       with Dataset(filepath, "r") as src_file:
         var = src_file.variables[vname]
         # TODO: Needs to work for 4 dimensions and not only two
-        u= np.unique(ipart[:,0])
-        for v in u:
-          _iaxis = np.where(ipart[:,0]==v)[0]
-          d=data.flatten()
-          d[idata]=var[v,ipart[:,1][_iaxis]]
-          data=d.reshape(data.shape)
-      
-      return data
-          
-        
+        array.append(np.array(var[ipart[:,0],ipart[:,1]]))
     
-    data=dataWrapper(idx,self.shape,self.master,f)
+    dataWrapper(idx,self.shape,self.master,f)
     
-    # array=np.concatenate(np.array(array))
-    return data
+    array=np.concatenate(np.array(array))
+    return array
     
     
   def __setitem__(self, idx,value):
@@ -132,7 +124,7 @@ class NetCDF2DGroup(object):
     vname,idx = self.__checkVariable(idx)
     value = value.flatten()
     
-    def f(part,idata,ipart,data):
+    def f(part,idata,ipart):
       strpart = "_".join(part.astype(str))
       filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.masterName, self.name, vname, strpart))
       
@@ -142,12 +134,14 @@ class NetCDF2DGroup(object):
       with Dataset(filepath, "r+") as src_file:
         var = src_file.variables[vname]
         
-        # Bug: Can't have two set of arrays in the indices and it takes a lot 
-        # of memory. For loop the first dimension...
+        # Bug: Can't have two set of arrays in the indices
         # var[ipart[:,0],ipart[:,1]]=value[idata]
-        u= np.unique(ipart[:,0])
+        u,ui = np.unique(ipart[:,0],return_inverse=True)
+        # print(idata.shape,value.shape)
         for v in u:
-          _iaxis = np.where(ipart[:,0]==v)[0]
+          _iaxis = np.where(ui==v)[0]
+          
+          # print(value[idata][_iaxis])
           var[v,ipart[:,1][_iaxis]]=value[idata][_iaxis]
           
     

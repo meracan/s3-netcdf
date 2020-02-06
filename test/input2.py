@@ -1,6 +1,6 @@
 
-nnode = 3000
-ntime = 24*30
+nnode = 262145
+ntime = 2
 nelem = 1000
 nspectra = 1
 nfreq = 1
@@ -19,7 +19,7 @@ spectravar = [
 
 
 Intput = dict(
-  name="test",
+  name="test2",
   folder=None,
   s3="",
   metadata=dict(

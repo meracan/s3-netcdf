@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
-from s3netcdf.netcdf2d_func import createNetCDF,\
+from netCDF4 import Dataset
+from s3netcdf.netcdf2d_func import createNetCDF,NetCDFSummary,\
   createVariables,getChildShape,getMasterShape,parseDescritor,\
   getIndices,getMasterIndices,getPartitions,dataWrapper
 
@@ -130,8 +131,51 @@ def test_dataWrapper():
   None
 
 def test_createNetCDF():
+  filePath = "test1.nc"
+  metadata=dict(title="Mytitle")
+  dimensions = [
+    dict(name="npe" ,value=3),
+    dict(name="nnode" ,value=100),
+    dict(name="ntime" ,value=1000),
+    dict(name="nelem" ,value=10),
+  ]
+  variables=[
+    dict(name="a" ,type="float32" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+    dict(name="lat" ,type="float64" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+    dict(name="lng" ,type="float64" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+    dict(name="elem" ,type="int32" ,dimensions=["nelem"] ,units="m" ,standard_name="" ,long_name=""),
+    dict(name="time" ,type="float64" ,dimensions=["ntime"] ,units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
+  ]
+  variables2 =[
+    dict(name="u" ,type="float32" ,units="m/s" ,standard_name="" ,long_name=""),
+  ]
+  groups=[
+      dict(name="s" ,dimensions=["ntime", "nnode"] ,variables=variables2),
+  ]
   
-  None
+  createNetCDF(filePath,folder=None,metadata=metadata,dimensions=dimensions,variables=variables,size=1.0)
+  nc=NetCDFSummary(filePath)
+  
+  np.testing.assert_array_equal(nc['metadata'],metadata)
+  np.testing.assert_array_equal(nc['dimensions'],dimensions)
+  np.testing.assert_array_equal(nc['variables'],variables)
+  
+  createNetCDF(filePath,folder=None,metadata=metadata,dimensions=dimensions,groups=groups,size=1.0)
+  nc=NetCDFSummary(filePath)
+  np.testing.assert_array_equal(nc['metadata'],metadata)
+  np.testing.assert_array_equal(nc['dimensions'],dimensions)
+  np.testing.assert_array_equal(nc['variables'],[])
+  
+  
+  dummyvariables=[]
+  dummyvariables.append(dict(name="shape" ,type="int32",dimensions=["nshape"]))
+  dummyvariables.append(dict(name="master" ,type="int32",dimensions=["nmaster"]))
+  dummyvariables.append(dict(name="child" ,type="int32",dimensions=["nchild"]))
+  variables2[0]['dimensions']=["ntime", "nnode"]
+  dummyvariables.append(variables2[0])
+  np.testing.assert_array_equal(nc['groups'][0]['variables'],dummyvariables)
+  
+  
 
 if __name__ == "__main__":
   test_getChildShape()
@@ -141,4 +185,4 @@ if __name__ == "__main__":
   test_getMasterIndices()
   test_getPartitions()
   test_dataWrapper()
-  # test_createNetCDF()
+  test_createNetCDF()

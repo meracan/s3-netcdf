@@ -4,7 +4,7 @@ from netCDF4 import num2date, date2num
 import numpy as np
 from datetime import datetime, timedelta
 
-from .netcdf2d_func import createNetCDF,getMasterShape
+from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape
 from .netcdf2dGroup import NetCDF2DGroup
 
 
@@ -63,7 +63,7 @@ class NetCDF2D(object):
     
     self.netcdfGroups = {}
     self.name = name = obj["name"]
-    folder = obj["folder"] if "folder" in obj else os.getcwd()
+    folder = obj["folder"] if "folder" in obj and obj["folder"] is not None else os.getcwd()
     self.folder = folder= os.path.join(folder, name)
   
     if not os.path.exists(folder): os.makedirs(folder)
@@ -73,10 +73,9 @@ class NetCDF2D(object):
     self.ncaPath = os.path.join(folder, "{}.nca".format(name))
     
     # TODO: Check S3, if exist, download 
-    if os.path.exists(self.ncPath) and os.path.exists(self.ncaPath):
-      self.open()
-    else:
+    if not os.path.exists(self.ncPath) or not os.path.exists(self.ncaPath):
       self.create(obj)
+    self.open()
     
   def create(self,obj):
       if not "nc" in obj: raise Exception("NetCDF2D needs a nc object")
@@ -95,6 +94,23 @@ class NetCDF2D(object):
     self.nc.close()
     self.nca.close()
 
+  def getSummary(self):
+    return {"nc":NetCDFSummary(self.ncPath),"nca":NetCDFSummary(self.ncaPath)}
+    
+
+  def getVShape(self,gname,vname):
+    if(gname is None):
+      src_file = self.nc
+      if not (vname in src_file.variables):raise Exception("Variable does not exist")
+      var = self.nc.variables[vname]
+      return np.array(var.shape)
+    else:
+      src_file = self.nca
+      if not gname in src_file.groups:raise Exception("Group does not exist")
+      src_group = src_file.groups[gname]
+      netcdfGroup = self.netcdfGroups[src_group.name]
+      return netcdfGroup.shape
+      
   def __getitem__(self, idx):
     """
     Needs atleast two axes, name of group and variable.
@@ -103,12 +119,15 @@ class NetCDF2D(object):
     """
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
     idx = list(idx)
+    
     gname = idx.pop(0)
     if(gname is None):
-      vname = idx.pop(1)
+      vname = idx.pop(0)
       src_file = self.nc
       if not (vname in src_file.variables):raise Exception("Variable does not exist")
       var = self.nc.variables[vname]
+      if len(idx)==0:
+        idx=slice(None,None,None)
       return var[idx]
     else:
       src_file = self.nca
@@ -126,9 +145,10 @@ class NetCDF2D(object):
     """    
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
     idx = list(idx)
+    
     gname = idx.pop(0)
     if(gname is None):
-      vname = idx.pop(1)
+      vname = idx.pop(0)
       src_file = self.nc
       if not (vname in src_file.variables):raise Exception("Variable does not exist")
       var = self.nc.variables[vname]

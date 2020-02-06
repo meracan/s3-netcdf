@@ -68,12 +68,12 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
       child = src_group.createVariable("child", "i4", ("nchild",))
 
       shape[:]=shapeArray
-      master[:],child[:] = getMasterShape(shapeArray, return_childShape=True, size=size)
-      
+      master[:],child[:] = getMasterShape(shapeArray, return_childshape=True, size=size)
+      src_group.groupDimensions = group['dimensions']
       createVariables(src_group,group['variables'],group['dimensions'])
       
 
-def createVariables(src_file,variables,dimensions=None):
+def createVariables(src_file,variables,groupDimensions=None):
   """
   Create variables in a NetCDF file
   
@@ -89,19 +89,82 @@ def createVariables(src_file,variables,dimensions=None):
     long_name:str,optional
     calendar:str,optional
   dimensions: default dimensions, optional
-  """  
+  """ 
+  
   for var in variables:
     if not 'name' in var:raise Exception("Variable need a name")
     if not 'type' in var:raise Exception("Variable need a type")
-    if dimensions is None:
+    if groupDimensions is None:
       if not 'dimensions' in var:raise Exception("Variable need dimensions")
       dimensions = var['dimensions']
+    else:
+      dimensions=groupDimensions
     
     _var = src_file.createVariable(var["name"],var["type"], dimensions,zlib=True,least_significant_digit=3)
     if "units" in var:_var.units = var["units"]
     if "standard_name" in var:_var.standard_name = var["standard_name"]
     if "long_name" in var:_var.long_name = var["long_name"]
     if "calendar" in var:_var.calendar = var["calendar"]  
+
+
+
+
+def NetCDFSummary(filePath):
+  '''
+  NetCDFSummary outputs metadata,dimensions, variables.
+  
+  Parameters
+  ----------
+  filePath:Path
+  
+
+  Returns
+  -------
+  dict : dict
+      metadata:
+      dimensions:
+      variables:
+  
+  '''
+  
+  
+  
+  with Dataset(filePath, "r") as src_file:
+    metadata={}
+    for id in src_file.ncattrs():
+      metadata[id]=src_file.getncattr(id)
+    
+    dimensions=[]
+    for id in src_file.dimensions:
+      dimensions.append(dict(name=id,value=len(src_file.dimensions[id])))
+    
+    variables =readVariables(src_file)
+    
+    groups=[]
+    for id in list(src_file.groups): 
+      group = {"name":id}
+      group['variables']=readVariables(src_file.groups[id])
+      group['dimensions']=src_file.groups[id].groupDimensions
+      groups.append(group)
+    
+    return dict(metadata=metadata,dimensions=dimensions,variables=variables,groups=groups)
+
+
+def readVariables(src):
+  variables=[]
+  for id in src.variables:
+    variable = {"name":id}
+    variable['type'] = src.variables[id].dtype.name
+    variable['dimensions'] = list(src.variables[id].dimensions)
+    
+    for ncattr in src.variables[id].ncattrs():
+      if(ncattr=="least_significant_digit"):
+        continue
+      variable[ncattr]=src.variables[id].getncattr(ncattr)
+    variables.append(variable)
+  return variables
+  
+  
 
 def getChildShape(shape,dtype="f4",size=1.0):
   """
@@ -300,6 +363,7 @@ def getMasterIndices(indices,shape,masterShape):
   TODO
   """ 
   meshgrid = np.meshgrid(*indices,indexing="ij")
+  
   index = np.ravel_multi_index(meshgrid, shape)
   index = np.concatenate(index)
   return np.array(np.unravel_index(index, masterShape)).T
@@ -330,13 +394,21 @@ def getPartitions(indices,shape,masterShape):
   """    
   limits=[]
   n = len(shape)
+  print(shape)
   for i,step in enumerate(masterShape[n:]):
-    if(np.min(indices[i])==np.max(indices[i])):
-      limits.append(np.array(0,dtype="int32"))
-    else:
-      limits.append(np.arange(np.min(indices[i]),np.max(indices[i]),step))
-  limits=np.array(limits)
-  masterLimits = getMasterIndices(limits,shape,masterShape)
+    _min =np.min(indices[i])
+    _max = np.max(indices[i])
+    l=np.arange(_min,_max,step)
+    
+    if(np.all(l!=_max)):
+      l=np.append(l,_max)
+    limits.append(l)
+
+  
+  meshgrid = np.meshgrid(*limits,indexing="ij")
+  limits = np.concatenate(np.array(meshgrid).T)
+
+  masterLimits = getMasterIndices(limits.T,shape,masterShape)
   allPartitions=masterLimits[:, :n]
   uniquePartitions = np.unique(allPartitions,axis=0)
   
@@ -372,10 +444,18 @@ def dataWrapper(idx, shape,masterShape,f):
   n = len(shape)
   indices = getIndices(idx,shape)
   partitions = getPartitions(indices, shape,masterShape)
-  
   masterIndices = getMasterIndices(indices,shape,masterShape)
+  
+  dataShape=[]
+  for i in range(len(indices)):
+    dataShape.append(len(indices[i]))
+  dataShape=tuple(dataShape)
+  data = np.empty(dataShape)
   
   for part in partitions:
     idata=np.all(masterIndices[:,:n] == part[None,:], axis=1)
+    
+    # print(masterIndices[np.where(idata)[0]][:,n:])
     ipart = masterIndices[np.where(idata)[0]][:,n:]
-    f(part,idata,ipart)
+    data=f(part,idata,ipart,data)
+  return data
