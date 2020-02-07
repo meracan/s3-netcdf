@@ -365,7 +365,7 @@ def getMasterIndices(indices,shape,masterShape):
   meshgrid = np.meshgrid(*indices,indexing="ij")
   
   index = np.ravel_multi_index(meshgrid, shape)
-  index = np.concatenate(index)
+  index = index.flatten()
   return np.array(np.unravel_index(index, masterShape)).T
 
 def getPartitions(indices,shape,masterShape):
@@ -394,7 +394,6 @@ def getPartitions(indices,shape,masterShape):
   """    
   limits=[]
   n = len(shape)
-  print(shape)
   for i,step in enumerate(masterShape[n:]):
     _min =np.min(indices[i])
     _max = np.max(indices[i])
@@ -403,15 +402,22 @@ def getPartitions(indices,shape,masterShape):
     if(np.all(l!=_max)):
       l=np.append(l,_max)
     limits.append(l)
+    
 
+  
   
   meshgrid = np.meshgrid(*limits,indexing="ij")
-  limits = np.concatenate(np.array(meshgrid).T)
-
+  
+  limits = np.array(meshgrid).T
+  
+  # limits = np.concatenate(np.array(meshgrid).T)
+  limits = np.squeeze(limits)
+  
   masterLimits = getMasterIndices(limits.T,shape,masterShape)
+  # print(masterLimits)
   allPartitions=masterLimits[:, :n]
   uniquePartitions = np.unique(allPartitions,axis=0)
-  
+  # print(uniquePartitions)
   return uniquePartitions
 
 def dataWrapper(idx, shape,masterShape,f):
@@ -452,10 +458,10 @@ def dataWrapper(idx, shape,masterShape,f):
   dataShape=tuple(dataShape)
   data = np.empty(dataShape)
   
+  
   for part in partitions:
-    idata=np.all(masterIndices[:,:n] == part[None,:], axis=1)
-    
-    # print(masterIndices[np.where(idata)[0]][:,n:])
-    ipart = masterIndices[np.where(idata)[0]][:,n:]
+    idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
+    idata = np.where(idata)[0]
+    ipart = masterIndices[idata][:,n:]
     data=f(part,idata,ipart,data)
   return data

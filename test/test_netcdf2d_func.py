@@ -118,10 +118,12 @@ def test_getPartitions():
   np.testing.assert_array_equal(getPartitions(indices2b_2,shape2b,master2b), np.array([[0,0]],dtype="int32"))
   np.testing.assert_array_equal(getPartitions(indices2b_3,shape2b,master2b), np.array([[0,0],[1,0]],dtype="int32"))
   
+  # TODO: Shape3a and Shape3b
+  
   
 
 def test_dataWrapper():
-  def f(part,idata,ipart):
+  def f(part,idata,ipart,data):
     np.testing.assert_array_equal(part,np.array([0,0],dtype="int32"))
     np.testing.assert_array_equal(idata.shape,(32769))
     np.testing.assert_array_equal(ipart.shape,(32769,2))

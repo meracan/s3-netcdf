@@ -2,9 +2,9 @@
 nnode = 262145
 ntime = 2
 nelem = 1000
-nspectra = 1
-nfreq = 1
-ndir = 1
+nspectra = 300
+nfreq = 33
+ndir = 36
 
 
 vars =[
