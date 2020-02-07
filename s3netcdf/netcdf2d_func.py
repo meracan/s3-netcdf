@@ -465,3 +465,71 @@ def dataWrapper(idx, shape,masterShape,f):
     ipart = masterIndices[idata][:,n:]
     data=f(part,idata,ipart,data)
   return data
+
+def getItemNetCDF(*args,**kwargs):
+  return _getset_ItemNetCDF(*args,**kwargs,get=True)
+
+def setItemNetCDF(*args,**kwargs):
+  return _getset_ItemNetCDF(*args,**kwargs,get=False)
+
+def _getset_ItemNetCDF(var,d,ipart,idata,_oldiaxis=slice(None,None,None),i=0,get=True):
+  """
+  Get or set data from NetCDF4.Dataset using multi-dimensional array indexing
+  
+  Parameters
+  ----------
+  var:
+  d: ndarray (1D)
+    
+  ipart:
+    
+  idata:
+  
+  _oldiaxis:
+  
+  i:
+  
+  get:
+  
+  
+  Returns
+  -------
+  d : ndarray
+  
+  Note 
+  ----
+  The initial approach was simply use multi-dimensional array indexing
+  using the following procudure,d[idata]=np.squeeze(var[(0,*ipart.T)[1:]]).
+  This does not work well with netCDF4.Dataset since it does not handle 
+  well multi-dimensional arrays indexing.
+  
+  For more information on "Indexing Multi-dimensional arrays",
+  https://docs.scipy.org/doc/numpy/user/basics.indexing.html
+  
+  Solution
+  --------
+  Use only single element indexing, slicing and single element indexing.
+  The procudure finds/loop each unique index on the left most axis and 
+  assign the values based on slicing methods or single element indexing. 
+  netCDF4.Dataset use a lot of memory for single element indexing. If it 
+  requires more than 100Mb of memory,it changes axis and acts as a 
+  recoccurence function.
+  """
+  
+  j=i+1
+  _part = ipart[_oldiaxis,i]
+  u= np.unique(_part)
+  for v in u:
+    _iaxis = np.where(_part==v)[0]
+    if(np.prod(var[v].shape)==len(d[idata[_iaxis]])):
+      if(get):d[idata[_iaxis]]=var[v].flatten()
+      else:var[v]=d[idata[_iaxis]]
+    else:
+      _s=ipart[_iaxis,j:].shape
+      n=np.power(_s[0],_s[1])
+      if(n>100/8*1024**2): #100mb memory
+        _getset_ItemNetCDF(var[v],d,ipart,idata,_iaxis,j,get)
+      else:
+        if(get):d[idata[_iaxis]]=np.squeeze(var[(v,*ipart[_iaxis,j:].T)])
+        else:var[(v,*ipart[_iaxis,j:].T)]=d[idata[_iaxis]]
+  return d

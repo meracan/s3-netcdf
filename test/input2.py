@@ -21,7 +21,9 @@ spectravar = [
 Intput = dict(
   name="test2",
   folder=None,
-  s3="",
+  localOnly=False,
+  autoUpload=True,
+  bucket="merac-dev",
   metadata=dict(
     title="Mytitle"
   ),

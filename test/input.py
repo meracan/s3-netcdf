@@ -22,6 +22,7 @@ Intput = dict(
   name="test",
   folder=None,
   s3="",
+  localOnly=True,
   metadata=dict(
     title="Mytitle"
   ),

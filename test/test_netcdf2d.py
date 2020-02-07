@@ -88,7 +88,7 @@ def test_NetCDF2D_v2():
   
   eshape = netcdf2d.getVShape("ss","e")
   evalue = np.arange(np.prod(eshape)).reshape(eshape)
-  # netcdf2d["ss","e"] = evalue
+  netcdf2d["ss","e"] = evalue
   # np.testing.assert_array_equal(netcdf2d["ss","e"], np.squeeze(evalue))
   np.testing.assert_array_equal(netcdf2d["ss","e",0,[0,100,200],0:10], np.squeeze(evalue[0,[0,100,200],0:10]))
   # print(netcdf2d["ss","e",0,0].shape)

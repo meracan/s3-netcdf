@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from netCDF4 import Dataset
-from .netcdf2d_func import createNetCDF,dataWrapper
+from .netcdf2d_func import createNetCDF,dataWrapper,getItemNetCDF,setItemNetCDF
 
 
 class NetCDF2DGroup(object):
@@ -16,15 +16,12 @@ class NetCDF2DGroup(object):
       Master NetCDF2D
   name : str
       Group name (i.e. s,t,ss,st)
-  masterName:str,
-    Mastername
+  
   
   Attributes
   ----------
   folderPath :
     Folder to save .nc file
-  masterName :
-    Name of master file
   name : str, 
     Group name (i.e. s,t,ss,st)
   ndata :
@@ -45,14 +42,14 @@ class NetCDF2DGroup(object):
     
   
   """
-  def __init__(self, folder, src_file, name,masterName):
+  def __init__(self, parent, src_file, name):
     src_group = src_file[name]
     shape = np.array(src_group.variables["shape"][:])
     master = np.array(src_group.variables["master"][:])
     child = np.array(src_group.variables["child"][:])
     
-    self.folderPath = os.path.join(folder, name)
-    self.masterName = masterName
+    self.parent = parent
+    self.folderPath = os.path.join(parent.folder, name)
     self.name = name
     self.ndata = len(shape)
     self.nmaster = len(master)
@@ -95,57 +92,21 @@ class NetCDF2DGroup(object):
     """    
     vname,idx = self.__checkVariable(idx)
     
-    def subf(var,d,ipart,idata,_oldiaxis,i):
-      j=i+1
-      _part = ipart[_oldiaxis,i]
-      u= np.unique(_part)
-      
-      for v in u:
-        _iaxis = np.where(_part==v)[0]
-        if(np.prod(var[v].shape)==len(d[idata[_iaxis]])):
-          d[idata[_iaxis]]=var[v].flatten()
-        else:
-          _s=ipart[_iaxis,j:].shape
-          n=np.power(_s[0],_s[1])
-          if(n>100/8*1024**2): #100mb memory
-            subf(var[v],d,ipart,idata,_iaxis,j)
-          else:
-            d[idata[_iaxis]]=np.squeeze(var[(v,*ipart[_iaxis,j:].T)])
-      return d
-      
-            
-
-    
     def f(part,idata,ipart,data):
       strpart = "_".join(part.astype(str))
-      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.masterName, self.name, vname, strpart))
+      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
       
-      # TODO :check s3, dowload
-      if not os.path.exists(filepath):raise Exception("File does not exist")
-      n=ipart.shape[1]
-      
-      # print(data.shape)
+      if not os.path.exists(filepath):
+        if self.parent.localOnly:raise Exception("File does not exist. No data was assigned")
+        if not self.parent.s3.exists(filepath):raise Exception("File does not exist. No data was assigned")
+        self.parent.s3.download(filepath)
+        
       d=data.flatten()
-      
       with Dataset(filepath, "r") as src_file:
         var = src_file.variables[vname]
-        d=subf(var,d,ipart,idata,slice(None,None,None),0)
-        # TODO: Needs to work for 4 dimensions and not only two
-        # subf(var,d,ipart,idata,slice(None,None,None),0)
-        # u= np.unique(ipart[:,0])
-        # for v in u:
-        #   _iaxis = np.where(ipart[:,0]==v)[0]
-          
-        #   if(np.prod(var[v].shape)==len(d[idata[_iaxis]])):
-        #     d[idata[_iaxis]]=var[v].flatten()
-        #   else:
-        #     d[idata[_iaxis]]=np.squeeze(var[(v,*ipart[_iaxis,1:].T)])
-          
-          
+        d=getItemNetCDF(var,d,ipart,idata)
       data=d.reshape(data.shape)
-      data=np.squeeze(data)
-      
-      return data
+      return np.squeeze(data)
           
         
     data=dataWrapper(idx,self.shape,self.master,f)
@@ -157,6 +118,9 @@ class NetCDF2DGroup(object):
     Setting values: dataWrapper gets all partitions and indices, and 
     uses the callback function f() to write data.
     """
+    localOnly = self.parent.localOnly
+    autoUpload = self.parent.autoUpload
+    s3 = self.parent.s3
     
     vname,idx = self.__checkVariable(idx)
     
@@ -165,31 +129,24 @@ class NetCDF2DGroup(object):
       value = value.flatten()
       
     # TODO check shape from value and idx
-      
+    # TODO value : handles int,float, etc. 
     
     
     def f(part,idata,ipart,data):
       strpart = "_".join(part.astype(str))
-      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.masterName, self.name, vname, strpart))
+      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
       
       if not os.path.exists(filepath):
-        createNetCDF(filepath,**self.variablesSetup[vname])
-      
+        if localOnly:createNetCDF(filepath,**self.variablesSetup[vname])  
+        else:
+          if s3.exists(filepath):s3.download(filepath)
+          else:createNetCDF(filepath,**self.variablesSetup[vname])  
+        
       with Dataset(filepath, "r+") as src_file:
         var = src_file.variables[vname]
-        
-        # Bug in NetCDF4: Can't have two set of tuple arrays in the indices
-        # In addition, this requires lots of memory
-        # Loop only first dimension...
-        # var[*ipart[:,1]]=value[idata]
-        u= np.unique(ipart[:,0])
-        for v in u:
-          _iaxis = np.where(ipart[:,0]==v)[0]
-          if(np.prod(var[v].shape)==len(value[idata[_iaxis]])):
-            # Shortcut instead of indexing
-            var[v]=value[idata[_iaxis]]
-          else:
-            var[(v,*ipart[_iaxis,1:].T)]=value[idata[_iaxis]]
-          
-          
+        setItemNetCDF(var,value,ipart,idata)
+      
+      if not localOnly and autoUpload:
+        s3.upload(filepath)
+      
     dataWrapper(idx,self.shape,self.master,f)

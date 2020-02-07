@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape
 from .netcdf2dGroup import NetCDF2DGroup
-
+from .s3client import S3Client
 
 class NetCDF2D(object):
   """
@@ -18,7 +18,12 @@ class NetCDF2D(object):
     name : str, Name of cdffile
     folder: str,path
     metadata : 
-    TODO s3: S3 bucket
+    
+    bucket: Name of S3 bucket
+    autoUpload:bool
+    localOnly:bool
+      To include or ignore s3 storage
+      Default:True
     nc:object
       dimensions:[obj]
         name:str
@@ -47,6 +52,10 @@ class NetCDF2D(object):
   ----------
   name :str, Name of NetCDF
   folder :path
+  localOnly:bool
+  bucket:str
+  autoUpload:bool
+  metadata:obj
   ncPath : path
     File contains nodes, connectivity table and static variables 
   ncaPath :path
@@ -59,22 +68,39 @@ class NetCDF2D(object):
     "st" = Spectral Temporal oriented
   """  
   def __init__(self, obj):
-    if not "name" in obj: raise Exception("NetCDF2D needs a name")
-    
-    self.netcdfGroups = {}
-    self.name = name = obj["name"]
+    self.name = name = obj["name"] if "name" in obj else None
+    self.localOnly = localOnly = obj["localOnly"] if "localOnly" in obj else True
+    self.bucket = bucket = obj["bucket"] if "bucket" in obj else None
+    self.autoUpload = autoUpload = obj["autoUpload"] if "autoUpload" in obj else True
     folder = obj["folder"] if "folder" in obj and obj["folder"] is not None else os.getcwd()
-    self.folder = folder= os.path.join(folder, name)
-  
+    self.metadata = obj["metadata"] if "metadata" in obj else dict()
+    
+    if name is None :raise Exception("NetCDF2D needs a name")
+    if not localOnly and bucket is None:raise Exception("Need a s3 bucket")
+    
+    self.parentFolder = folder
+    self.folder = folder = os.path.join(folder, name)
     if not os.path.exists(folder): os.makedirs(folder)
     
-    self.metadata = obj["metadata"] if "metadata" in obj else dict()
-    self.ncPath = os.path.join(folder, "{}.nc".format(name))
-    self.ncaPath = os.path.join(folder, "{}.nca".format(name))
+    self.netcdfGroups = {}
+    self.s3 = s3 = S3Client(self) 
     
-    # TODO: Check S3, if exist, download 
-    if not os.path.exists(self.ncPath) or not os.path.exists(self.ncaPath):
-      self.create(obj)
+    ncName = "{}.nc".format(name)
+    ncaName = "{}.nca".format(name)
+    self.ncPath = ncPath = os.path.join(folder,ncName)
+    self.ncaPath = ncaPath = os.path.join(folder,ncaName)
+    
+    if not os.path.exists(ncPath) or not os.path.exists(ncaPath):
+      if localOnly:self.create(obj)
+      else:
+        if s3.exists(ncPath) and s3.exists(ncaPath) :
+          s3.download(ncPath)
+          s3.download(ncaPath)
+        else:
+          self.create(obj)
+          s3.upload(ncPath)
+          s3.upload(ncaPath)
+    
     self.open()
     
   def create(self,obj):
@@ -88,7 +114,7 @@ class NetCDF2D(object):
     self.nca = Dataset(self.ncaPath, "r+")
  
     for group in self.nca.groups:
-      self.netcdfGroups[group] = NetCDF2DGroup(self.folder, self.nca, group,self.name)
+      self.netcdfGroups[group] = NetCDF2DGroup(self, self.nca, group)
   
   def close(self):
     self.nc.close()
@@ -135,6 +161,7 @@ class NetCDF2D(object):
       src_group = src_file.groups[gname]
       netcdfGroup = self.netcdfGroups[src_group.name]
       return netcdfGroup[tuple(idx)]
+    # TODO - Cache size...delete data when necessary
       
       
   def __setitem__(self, idx,value):
