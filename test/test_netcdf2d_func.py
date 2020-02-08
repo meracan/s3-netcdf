@@ -27,8 +27,8 @@ def test_getChildShape():
   np.testing.assert_array_equal(getChildShape(shape4a), shape4a)
   np.testing.assert_array_equal(getChildShape(shape4b), [5,8,8,512])
   np.testing.assert_array_equal(getChildShape(shape4c), [4,8,8,513])
-  np.testing.assert_array_equal(getChildShape(shape5a,size=2), shape5a)
-  np.testing.assert_array_equal(getChildShape(shape5b,size=2), [8, 32769])
+  np.testing.assert_array_equal(getChildShape(shape5a,ncSize=2), shape5a)
+  np.testing.assert_array_equal(getChildShape(shape5b,ncSize=2), [8, 32769])
   np.testing.assert_array_equal(getChildShape(shape6a,dtype="f8"), shape6a)
   np.testing.assert_array_equal(getChildShape(shape6b,dtype="f8"), [2, 32769])
   
@@ -42,8 +42,8 @@ def test_getMasterShape():
   np.testing.assert_array_equal(getMasterShape(shape4a), [1,1,1,1,8,8,8,512])
   np.testing.assert_array_equal(getMasterShape(shape4b), [2,1,1,1,5,8,8,512])
   np.testing.assert_array_equal(getMasterShape(shape4c), [2,1,1,1,4,8,8,513])
-  np.testing.assert_array_equal(getMasterShape(shape5a,size=2), [1, 1, 16, 32768])
-  np.testing.assert_array_equal(getMasterShape(shape5b,size=2), [2, 1, 8, 32769])
+  np.testing.assert_array_equal(getMasterShape(shape5a,ncSize=2), [1, 1, 16, 32768])
+  np.testing.assert_array_equal(getMasterShape(shape5b,ncSize=2), [2, 1, 8, 32769])
   np.testing.assert_array_equal(getMasterShape(shape6a,dtype="f8"), [1, 1, 4, 32768])
   np.testing.assert_array_equal(getMasterShape(shape6b,dtype="f8"), [2, 1, 2, 32769])
   
@@ -123,7 +123,7 @@ def test_getPartitions():
   
 
 def test_dataWrapper():
-  def f(part,idata,ipart,data):
+  def f(part,idata,ipart,data,uvalue):
     np.testing.assert_array_equal(part,np.array([0,0],dtype="int32"))
     np.testing.assert_array_equal(idata.shape,(32769))
     np.testing.assert_array_equal(ipart.shape,(32769,2))
@@ -134,6 +134,7 @@ def test_dataWrapper():
 
 def test_createNetCDF():
   filePath = "test1.nc"
+  folder = "../s3"
   metadata=dict(title="Mytitle")
   dimensions = [
     dict(name="npe" ,value=3),
@@ -155,14 +156,14 @@ def test_createNetCDF():
       dict(name="s" ,dimensions=["ntime", "nnode"] ,variables=variables2),
   ]
   
-  createNetCDF(filePath,folder=None,metadata=metadata,dimensions=dimensions,variables=variables,size=1.0)
+  createNetCDF(filePath,folder=folder,metadata=metadata,dimensions=dimensions,variables=variables,ncSize=1.0)
   nc=NetCDFSummary(filePath)
   
   np.testing.assert_array_equal(nc['metadata'],metadata)
   np.testing.assert_array_equal(nc['dimensions'],dimensions)
   np.testing.assert_array_equal(nc['variables'],variables)
   
-  createNetCDF(filePath,folder=None,metadata=metadata,dimensions=dimensions,groups=groups,size=1.0)
+  createNetCDF(filePath,folder=folder,metadata=metadata,dimensions=dimensions,groups=groups,ncSize=1.0)
   nc=NetCDFSummary(filePath)
   np.testing.assert_array_equal(nc['metadata'],metadata)
   np.testing.assert_array_equal(nc['dimensions'],dimensions)

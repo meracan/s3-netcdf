@@ -19,11 +19,10 @@ class S3Client(object):
   """
   def __init__(self, parent):
     self.parent = parent
-    self.parentFolder = parent.parentFolder
     self.bucket = parent.bucket
   
   def _gets3path(self,filepath):
-    s3path = os.path.relpath(filepath,self.parentFolder)
+    s3path = os.path.relpath(filepath,self.parent.cacheLocation)
     return s3path
     
   def exists(self,filepath):

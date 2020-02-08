@@ -1,8 +1,9 @@
 import os
 from netCDF4 import Dataset
 import numpy as np
+import time
 
-def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=None,groups=None,size=1.0):
+def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=None,groups=None,ncSize=1.0):
   """
   Create NetCDF
   
@@ -14,7 +15,7 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
   dimensions:object,optional.
   variables:object,optional.
   groups:object,optional.
-  size:object,optional.
+  ncSize:object,optional.
   
   Notes
   -----
@@ -68,7 +69,7 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
       child = src_group.createVariable("child", "i4", ("nchild",))
 
       shape[:]=shapeArray
-      master[:],child[:] = getMasterShape(shapeArray, return_childshape=True, size=size)
+      master[:],child[:] = getMasterShape(shapeArray, return_childshape=True, ncSize=ncSize)
       src_group.groupDimensions = group['dimensions']
       createVariables(src_group,group['variables'],group['dimensions'])
       
@@ -166,7 +167,7 @@ def readVariables(src):
   
   
 
-def getChildShape(shape,dtype="f4",size=1.0):
+def getChildShape(shape,dtype="f4",ncSize=1.0):
   """
   Find new shape based on array size in bytes
   
@@ -175,7 +176,7 @@ def getChildShape(shape,dtype="f4",size=1.0):
   shape: ndarray(1D).
   dtype: data-type, optional.
     Default is float32.
-  size:float,optional.
+  ncSize:float,optional.
     Maximum array size (MB)
     Default is 1.
     
@@ -200,7 +201,7 @@ def getChildShape(shape,dtype="f4",size=1.0):
   """
   
   itemSize = np.dtype(dtype).itemsize
-  size = size * 1024.0**2
+  ncSize = ncSize * 1024.0**2
   
   items = 1
   fileShape = np.ones(len(shape), dtype=np.int)
@@ -208,7 +209,7 @@ def getChildShape(shape,dtype="f4",size=1.0):
     n = shape[i]
     items *= n
     fileSize = items * itemSize
-    p = np.int(np.ceil(fileSize / size))
+    p = np.int(np.ceil(fileSize / ncSize))
     if (p > 1):
       fileShape[i] = np.int(np.ceil(n * 1.0 / p))
       break
@@ -362,11 +363,13 @@ def getMasterIndices(indices,shape,masterShape):
   --------
   TODO
   """ 
-  meshgrid = np.meshgrid(*indices,indexing="ij")
   
-  index = np.ravel_multi_index(meshgrid, shape)
-  index = index.flatten()
-  return np.array(np.unravel_index(index, masterShape)).T
+  if isinstance(indices[0],np.ndarray): # Check if 1D or multidimentional
+    meshgrid = np.meshgrid(*indices,indexing="ij")
+    indices = np.ravel_multi_index(meshgrid, shape)
+    indices = indices.flatten()
+  
+  return np.array(np.unravel_index(indices, masterShape)).T
 
 def getPartitions(indices,shape,masterShape):
   """
@@ -409,10 +412,11 @@ def getPartitions(indices,shape,masterShape):
   meshgrid = np.meshgrid(*limits,indexing="ij")
   
   limits = np.array(meshgrid).T
+  # print(limits)
   
-  # limits = np.concatenate(np.array(meshgrid).T)
-  limits = np.squeeze(limits)
-  
+  limits = np.concatenate(limits)
+  # limits = np.squeeze(limits)
+  # print(limits)
   masterLimits = getMasterIndices(limits.T,shape,masterShape)
   # print(masterLimits)
   allPartitions=masterLimits[:, :n]
@@ -420,7 +424,7 @@ def getPartitions(indices,shape,masterShape):
   # print(uniquePartitions)
   return uniquePartitions
 
-def dataWrapper(idx, shape,masterShape,f):
+def dataWrapper(idx, shape,masterShape,f,value=None):
   """
   Data wrapper
   Gets proper partitions, indices in the master array from the data array (idx)
@@ -456,14 +460,32 @@ def dataWrapper(idx, shape,masterShape,f):
   for i in range(len(indices)):
     dataShape.append(len(indices[i]))
   dataShape=tuple(dataShape)
-  data = np.empty(dataShape)
   
+  if(value is not None):
+    if isinstance(value,list):
+      value=np.array(value)
+      value = value.flatten()
+    if isinstance(value,np.ndarray):
+      value = value.flatten()
+    if isinstance(value,(int,float)):
+      temp = np.zeros(np.prod(dataShape))+value
+      value=temp
+    if isinstance(value,str):
+      raise Exception("Check Input. Not tested for string")
+    if(np.prod(dataShape)!=np.prod(value.shape)):
+      # TODO, try repeat row...
+      raise Exception("Check input. Shape does not match {} and {}".format(dataShape,value.shape))
+  
+  
+  data = np.empty(dataShape)
   
   for part in partitions:
     idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
+    # print(masterIndices[:,:n],part[None,:],partitions)
     idata = np.where(idata)[0]
     ipart = masterIndices[idata][:,n:]
-    data=f(part,idata,ipart,data)
+    
+    data=f(part,idata,ipart,data,value)
   return data
 
 def getItemNetCDF(*args,**kwargs):
@@ -472,7 +494,7 @@ def getItemNetCDF(*args,**kwargs):
 def setItemNetCDF(*args,**kwargs):
   return _getset_ItemNetCDF(*args,**kwargs,get=False)
 
-def _getset_ItemNetCDF(var,d,ipart,idata,_oldiaxis=slice(None,None,None),i=0,get=True):
+def _getset_ItemNetCDF(var,d,ipart,idata,get=True):
   """
   Get or set data from NetCDF4.Dataset using multi-dimensional array indexing
   
@@ -484,10 +506,6 @@ def _getset_ItemNetCDF(var,d,ipart,idata,_oldiaxis=slice(None,None,None),i=0,get
   ipart:
     
   idata:
-  
-  _oldiaxis:
-  
-  i:
   
   get:
   
@@ -501,35 +519,24 @@ def _getset_ItemNetCDF(var,d,ipart,idata,_oldiaxis=slice(None,None,None),i=0,get
   The initial approach was simply use multi-dimensional array indexing
   using the following procudure,d[idata]=np.squeeze(var[(0,*ipart.T)[1:]]).
   This does not work well with netCDF4.Dataset since it does not handle 
-  well multi-dimensional arrays indexing.
+  numpy multi-dimensional arrays indexing.
   
   For more information on "Indexing Multi-dimensional arrays",
   https://docs.scipy.org/doc/numpy/user/basics.indexing.html
   
   Solution
   --------
-  Use only single element indexing, slicing and single element indexing.
-  The procudure finds/loop each unique index on the left most axis and 
-  assign the values based on slicing methods or single element indexing. 
-  netCDF4.Dataset use a lot of memory for single element indexing. If it 
-  requires more than 100Mb of memory,it changes axis and acts as a 
-  recoccurence function.
+  Save netcdf array to numpy, use multi-dimensional array indexing on the numpy 
+  array,convert back to netcdf if necessary
   """
   
-  j=i+1
-  _part = ipart[_oldiaxis,i]
-  u= np.unique(_part)
-  for v in u:
-    _iaxis = np.where(_part==v)[0]
-    if(np.prod(var[v].shape)==len(d[idata[_iaxis]])):
-      if(get):d[idata[_iaxis]]=var[v].flatten()
-      else:var[v]=d[idata[_iaxis]]
-    else:
-      _s=ipart[_iaxis,j:].shape
-      n=np.power(_s[0],_s[1])
-      if(n>100/8*1024**2): #100mb memory
-        _getset_ItemNetCDF(var[v],d,ipart,idata,_iaxis,j,get)
-      else:
-        if(get):d[idata[_iaxis]]=np.squeeze(var[(v,*ipart[_iaxis,j:].T)])
-        else:var[(v,*ipart[_iaxis,j:].T)]=d[idata[_iaxis]]
+  tup = (0,*ipart.T)[1:]
+  if(get):
+    all=var[:]
+    d[idata]=np.squeeze(all[tup])
+  else:
+    all=var[:]
+    all[tup]=d[idata]
+    var[:]=all
+    
   return d

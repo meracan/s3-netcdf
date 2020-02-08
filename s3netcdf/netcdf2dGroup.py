@@ -1,8 +1,10 @@
 import os
 import numpy as np
 from netCDF4 import Dataset
+from netCDF4 import num2date, date2num
 from .netcdf2d_func import createNetCDF,dataWrapper,getItemNetCDF,setItemNetCDF
-
+import time
+np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
 class NetCDF2DGroup(object):
   """
@@ -43,7 +45,7 @@ class NetCDF2DGroup(object):
   
   """
   def __init__(self, parent, src_file, name):
-    src_group = src_file[name]
+    self.src_group = src_group = src_file[name]
     shape = np.array(src_group.variables["shape"][:])
     master = np.array(src_group.variables["master"][:])
     child = np.array(src_group.variables["child"][:])
@@ -57,10 +59,11 @@ class NetCDF2DGroup(object):
     self.shape = shape
     self.master = master
     self.child = child
-    
+    self.attributes = self._getAttributes()
     self.variablesSetup = {}
     
     for vname in src_group.variables:
+      # TODO: clean this section
       if(vname=="shape" or vname=="master" or vname=="child"):continue
       dnames = src_group.variables[vname].dimensions
       dimensions = []
@@ -71,7 +74,19 @@ class NetCDF2DGroup(object):
       for attribute in src_group.variables[vname].ncattrs():
         variable[attribute] = getattr(src_group.variables[vname],attribute)
       self.variablesSetup[vname]=dict(dimensions=dimensions,variables=[variable])
-
+  
+  def _getAttributes(self):
+    src_group = self.src_group
+    _attributes={}
+    for vname in src_group.variables:
+      
+      variable = src_group.variables[vname]
+      attributes = {}
+      for attribute in variable.ncattrs():
+        attributes[attribute] = getattr(variable,attribute)
+      _attributes[vname]=attributes
+    return _attributes
+  
   def __checkVariable(self,idx):
     """
     Checking parameters before getting and setting values:
@@ -89,10 +104,12 @@ class NetCDF2DGroup(object):
     """
     Getting values: dataWrapper gets all partitions and indices, and 
     uses the callback function f() to extract data.
-    """    
-    vname,idx = self.__checkVariable(idx)
+    """
     
-    def f(part,idata,ipart,data):
+    vname,idx = self.__checkVariable(idx)
+    attributes = self.attributes[vname]
+    
+    def f(part,idata,ipart,data,uvalue):
       strpart = "_".join(part.astype(str))
       filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
       
@@ -110,6 +127,10 @@ class NetCDF2DGroup(object):
           
         
     data=dataWrapper(idx,self.shape,self.master,f)
+    
+    if "calendar" in attributes:
+      data=num2date(data,units=attributes["units"],calendar=attributes["calendar"])
+    
     return data
     
     
@@ -122,17 +143,23 @@ class NetCDF2DGroup(object):
     autoUpload = self.parent.autoUpload
     s3 = self.parent.s3
     
+    
     vname,idx = self.__checkVariable(idx)
+    attributes = self.attributes[vname]
     
-    
-    if isinstance(value,np.ndarray):
-      value = value.flatten()
+    # if isinstance(value,np.ndarray):
+      # value = value.flatten()
       
-    # TODO check shape from value and idx
+    
     # TODO value : handles int,float, etc. 
     
+    if "calendar" in attributes:
+      value=date2num(value,units=attributes["units"],calendar=attributes["calendar"])
     
-    def f(part,idata,ipart,data):
+    
+    # start = time.time() 
+    def f(part,idata,ipart,data,uvalue):
+      
       strpart = "_".join(part.astype(str))
       filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
       
@@ -141,12 +168,15 @@ class NetCDF2DGroup(object):
         else:
           if s3.exists(filepath):s3.download(filepath)
           else:createNetCDF(filepath,**self.variablesSetup[vname])  
-        
+      
+      # start = time.time()  
       with Dataset(filepath, "r+") as src_file:
         var = src_file.variables[vname]
-        setItemNetCDF(var,value,ipart,idata)
-      
+        setItemNetCDF(var,uvalue,ipart,idata)
+      # print(time.time() - start)
       if not localOnly and autoUpload:
         s3.upload(filepath)
       
-    dataWrapper(idx,self.shape,self.master,f)
+      
+    dataWrapper(idx,self.shape,self.master,f,value)
+    # print(time.time() - start)
