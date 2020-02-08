@@ -46,7 +46,7 @@ class NetCDF2D(object):
   localOnly:bool
   bucket:str
   autoUpload:bool
-  metadata:obj
+  
   ncPath : path
     File contains nodes, connectivity table and static variables 
   ncaPath :path
@@ -64,7 +64,7 @@ class NetCDF2D(object):
     self.bucket = bucket = obj["bucket"] if "bucket" in obj else None
     self.autoUpload = autoUpload = obj["autoUpload"] if "autoUpload" in obj else True
     cacheLocation = obj["cacheLocation"] if "cacheLocation" in obj and obj["cacheLocation"] is not None else os.getcwd()
-    self.metadata = obj["metadata"] if "metadata" in obj else dict()
+    
     cacheSize = obj["cacheSize"] if "cacheSize" in obj else 10
     self.ncSize = obj["ncSize"] if "ncSize" in obj else 1
     
@@ -96,7 +96,7 @@ class NetCDF2D(object):
     
   def create(self,obj):
       if not "nca" in obj: raise Exception("NetCDF2D needs a nca object")
-      createNetCDF(self.ncaPath,folder=self.folder,metadata=self.metadata,ncSize=self.ncSize,**obj["nca"])  
+      createNetCDF(self.ncaPath,folder=self.folder,ncSize=self.ncSize,**obj["nca"])  
   
   def open(self):
     self.nca = Dataset(self.ncaPath, "r+")

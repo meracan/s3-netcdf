@@ -6,8 +6,8 @@
   "bucket":"merac-dev",
   "cacheSize":10.0,
   "ncSize":1.0,
-  "metadata":{"title":"title-input1"},
   "nca": {
+    "metadata":{"title":"title-input1"},
     "dimensions" : {"npe":3,"nelem":500,"nnode":1000,"ntime":2},
     "groups":{
       "elem":{"dimensions":["nelem","npe"],"variables":{

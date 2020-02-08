@@ -12,10 +12,8 @@ Input = dict(
   bucket="merac-dev",
   cacheSize=10.0,
   ncSize=1.0,
-  metadata=dict(
-    title="Input1"
-  ),
   nca = dict(
+    metadata=dict(title="Input1"),
     dimensions = [
       dict(name="npe" ,value=3),
       dict(name="nelem" ,value=500),

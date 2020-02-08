@@ -220,13 +220,12 @@ Here's an example:
 ```
 
 ## TODO
-
-- Find optimize shape to upload
-- Clean cache/s3 objects
-- Check precision decimal,least_significant_digit
 - Clean metadata
 - Change Input reading, dimensions/groups should be dicts
+- Find optimize shape to upload
+- Clean cache/s3 objects
 - Change clear, delete from cache and s3
+- Check precision decimal,least_significant_digit
 - Better performance tests
 - 
 
