@@ -67,7 +67,8 @@ def perf_NetCDF2D_4():
   sashape = netcdf2d.getVShape("s","a")
   start = 0
   end = 1
-  step=100
+  step=140
+  print(sashape)
   for i in range(0,sashape[0],step):
     print("{} of {} - {}hrs".format(i,sashape[0],(end-start)*(sashape[0]-1-i)/step/60./60.))
     start = time.time()

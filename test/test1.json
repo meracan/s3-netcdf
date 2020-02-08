@@ -1,0 +1,36 @@
+{
+  "name":"input1",
+  "cacheLocation":"../s3",
+  "localOnly":true,
+  "autoUpload":true,
+  "bucket":"merac-dev",
+  "cacheSize":10.0,
+  "ncSize":1.0,
+  "metadata":{"title":"title-input1"},
+  "nca": {
+    "dimensions" : {"npe":3,"nelem":500,"nnode":1000,"ntime":2},
+    "groups":{
+      "elem":{"dimensions":["nelem","npe"],"variables":{
+          "elem":{"type":"i4", "units":"" ,"standard_name":"Elements" ,"long_name":"Connectivity table (mesh elements)"}
+        }
+      },
+      "time":{"dimensions":["ntime"],"variables":{
+          "time":{"type":"f8", "units":"hours since 1970-01-01 00:00:00.0","calendar":"gregorian" ,"standard_name":"Datetime" ,"long_name":"Datetime"}
+        }
+      },
+      "nodes":{"dimensions":["nnode"],"variables":{
+          "bed":{"type":"f4", "units":"m" ,"standard_name":"Bed Elevation, m" ,"long_name":"Description of data source"},
+          "friction":{"type":"f4", "units":"" ,"standard_name":"Bed Friction (Manning's)" ,"long_name":"Description of data source"}
+        }
+      },
+      "s":{"dimensions":["ntime","nnode"],"variables":{
+          "a":{"type":"f4", "units":"m" ,"standard_name":"a variable" ,"long_name":"Description of a"}
+        }
+      },
+      "t":{"dimensions":["nnode","ntime"],"variables":{
+          "a":{"type":"f4", "units":"m" ,"standard_name":"a variable" ,"long_name":"Description of a"}
+        }
+      }
+    }
+  }
+}
