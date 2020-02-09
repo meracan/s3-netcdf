@@ -11,7 +11,6 @@ Input = dict(
   name="input3",
   cacheLocation=r"../s3",
   localOnly=False,
-  autoUpload=True,
   bucket="merac-dev",
   cacheSize=2.0,
   ncSize=100.0,

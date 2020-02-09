@@ -63,17 +63,18 @@ class NetCDF2DGroup(object):
     self.variablesSetup = {}
     
     for vname in src_group.variables:
-      # TODO: clean this section
       if(vname=="shape" or vname=="master" or vname=="child"):continue
       dnames = src_group.variables[vname].dimensions
-      dimensions = []
+      dimensions = {}
       for i,dname in enumerate(dnames):
-        dimensions.append(dict(name=dname, value=child[i]))
+        dimensions[dname] = child[i]
       
-      variable = dict(name=vname, type=src_group.variables[vname].dtype.name,dimensions=dnames)
+      variables = {}
+      variable = dict(type=src_group.variables[vname].dtype.name,dimensions=dnames)
       for attribute in src_group.variables[vname].ncattrs():
         variable[attribute] = getattr(src_group.variables[vname],attribute)
-      self.variablesSetup[vname]=dict(dimensions=dimensions,variables=[variable])
+      variables[vname] = variable
+      self.variablesSetup[vname]=dict(dimensions=dimensions,variables=variables)
   
   def _getAttributes(self):
     src_group = self.src_group
@@ -140,18 +141,11 @@ class NetCDF2DGroup(object):
     uses the callback function f() to write data.
     """
     localOnly = self.parent.localOnly
-    autoUpload = self.parent.autoUpload
     s3 = self.parent.s3
     
     
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]
-    
-    # if isinstance(value,np.ndarray):
-      # value = value.flatten()
-      
-    
-    # TODO value : handles int,float, etc. 
     
     if "calendar" in attributes:
       value=date2num(value,units=attributes["units"],calendar=attributes["calendar"])
@@ -174,7 +168,7 @@ class NetCDF2DGroup(object):
         var = src_file.variables[vname]
         setItemNetCDF(var,uvalue,ipart,idata)
       # print(time.time() - start)
-      if not localOnly and autoUpload:
+      if not localOnly:
         s3.upload(filepath)
       
       

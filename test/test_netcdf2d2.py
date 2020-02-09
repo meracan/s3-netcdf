@@ -11,68 +11,68 @@ Input = dict(
   name="input2",
   cacheLocation=r"../s3",
   localOnly=True,
-  autoUpload=True,
+  
   bucket="merac-dev",
   cacheSize=10.0,
   ncSize=10.0,
   
   nca = dict(
     metadata=dict(title="Input2"),
-    dimensions = [
-      dict(name="npe" ,value=3),
-      dict(name="nelem" ,value=262145),
-      dict(name="nnode" ,value=262145),
-      dict(name="ntime" ,value=2),
-      dict(name="nspectra" ,value=300),
-      dict(name="nfreq" ,value=33),
-      dict(name="ndir" ,value=36),
-    ],
-    groups=[
-      dict(name="elem",dimensions=["nelem","npe"],variables=[
-        dict(name="elem",type="i4", units="" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="time",dimensions=["ntime"],variables=[
-        dict(name="time",type="f4",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="nodes",dimensions=["nnode"],variables=[
-        dict(name="bed",type="f4",units="m" ,standard_name="" ,long_name=""),
-        dict(name="friction",type="f4" ,units="" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="s" ,dimensions=["ntime", "nnode"] ,variables=[
-        dict(name="a",type="f4",units="m" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="t" ,dimensions=["nnode" ,"ntime"] ,variables=[
-        dict(name="a",type="f4",units="m" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="ss" ,dimensions=["ntime", "nspectra", "nfreq", "ndir"] ,variables=[
-        dict(name="e" ,type="f4" ,units="watts" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="st" ,dimensions=["nspectra" ,"ntime", "nfreq", "ndir"] ,variables=[
-        dict(name="e" ,type="f4" ,units="watts" ,standard_name="" ,long_name=""),
-        ]),
-    ]
+    dimensions = dict(
+      npe=3,
+      nelem=262145,
+      nnode=262145,
+      ntime=2,
+      nspectra=300,
+      nfreq=33,
+      ndir=36,
+    ),
+    groups=dict(
+      elem=dict(dimensions=["nelem","npe"],variables=dict(
+        elem=dict(type="i4", units="" ,standard_name="" ,long_name=""),
+      )),
+      time=dict(dimensions=["ntime"],variables=dict(
+        time=dict(type="f4",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
+        )),
+      nodes=dict(dimensions=["nnode"],variables=dict(
+        bed=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
+        friction=dict(type="f4" ,units="" ,standard_name="" ,long_name=""),
+        )),
+      s=dict(dimensions=["ntime", "nnode"] ,variables=dict(
+        a=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
+        )),
+      t=dict(dimensions=["nnode" ,"ntime"] ,variables=dict(
+        a=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
+        )),
+      ss=dict(dimensions=["ntime", "nspectra", "nfreq", "ndir"] ,variables=dict(
+        e=dict(type="f4" ,units="watts" ,standard_name="" ,long_name=""),
+        )),
+      st=dict(dimensions=["nspectra" ,"ntime", "nfreq", "ndir"] ,variables=dict(
+        e=dict(type="f4" ,units="watts" ,standard_name="" ,long_name=""),
+        )),
+    )
   )
 )
 
 def test_NetCDF2D_2():
   shutil.rmtree(Input['cacheLocation'])
   netcdf2d=NetCDF2D(Input)
-  elemshape = netcdf2d.getVShape("elem","elem")
+  elemshape = netcdf2d.groups["elem"].shape
   elemvalue = np.arange(np.prod(elemshape)).reshape(elemshape)
   netcdf2d["elem","elem"] = elemvalue
   np.testing.assert_array_equal(netcdf2d["elem","elem"], elemvalue)
   
-  timeshape = netcdf2d.getVShape("time","time")
+  timeshape = netcdf2d.groups["time"].shape
   timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
   netcdf2d["time","time"] = timevalue
   np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
   
-  bedshape = netcdf2d.getVShape("nodes","bed")
+  bedshape = netcdf2d.groups["nodes"].shape
   bedvalue = np.arange(np.prod(bedshape)).reshape(bedshape)
   netcdf2d["nodes","bed"] = bedvalue
   np.testing.assert_array_equal(netcdf2d["nodes","bed"], bedvalue)
   
-  sashape = netcdf2d.getVShape("s","a")
+  sashape = netcdf2d.groups["s"].shape
   savalue = np.arange(np.prod(sashape)).reshape(sashape)
   netcdf2d["s","a"] = savalue
 
@@ -111,7 +111,7 @@ def test_NetCDF2D_2():
   np.testing.assert_array_equal(netcdf2d["s","a",0,100:110], z10)
   np.testing.assert_array_equal(netcdf2d["s","a",1,100:110], z10)
   
-  eshape = netcdf2d.getVShape("ss","e")
+  eshape = netcdf2d.groups["ss"].shape
   evalue = np.arange(np.prod(eshape)).reshape(eshape)
   netcdf2d["ss","e"] = evalue
   np.testing.assert_array_equal(netcdf2d["ss","e"], np.squeeze(evalue))

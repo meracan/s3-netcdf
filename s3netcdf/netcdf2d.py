@@ -21,7 +21,6 @@ class NetCDF2D(object):
     metadata : 
     
     bucket: Name of S3 bucket
-    autoUpload:bool
     localOnly:bool
       To include or ignore s3 storage
       Default:True
@@ -45,13 +44,12 @@ class NetCDF2D(object):
   folder :path
   localOnly:bool
   bucket:str
-  autoUpload:bool
   
   ncPath : path
     File contains nodes, connectivity table and static variables 
   ncaPath :path
     Master file, contains information about master and child netcdf files
-  netcdfGroups : [NetCDF2DGroup]
+  groups : [NetCDF2DGroup]
     Contains information on different groups (i.e "s","t","ss","st")
     "s" = Spatial oriented
     "t" = Temporal oriented
@@ -62,7 +60,6 @@ class NetCDF2D(object):
     self.name = name = obj["name"] if "name" in obj else None
     self.localOnly = localOnly = obj["localOnly"] if "localOnly" in obj else True
     self.bucket = bucket = obj["bucket"] if "bucket" in obj else None
-    self.autoUpload = autoUpload = obj["autoUpload"] if "autoUpload" in obj else True
     cacheLocation = obj["cacheLocation"] if "cacheLocation" in obj and obj["cacheLocation"] is not None else os.getcwd()
     
     cacheSize = obj["cacheSize"] if "cacheSize" in obj else 10
@@ -75,7 +72,7 @@ class NetCDF2D(object):
     self.folder = folder = os.path.join(cacheLocation, name)
     if not os.path.exists(folder): os.makedirs(folder)
     
-    self.netcdfGroups = {}
+    self.groups = {}
     self.s3 = s3 = S3Client(self)
     self.cache  = Cache(self)
     self.cacheSize = cacheSize * 1024**2
@@ -92,69 +89,46 @@ class NetCDF2D(object):
     
     self.open()
     
-  
-    
   def create(self,obj):
       if not "nca" in obj: raise Exception("NetCDF2D needs a nca object")
       createNetCDF(self.ncaPath,folder=self.folder,ncSize=self.ncSize,**obj["nca"])  
   
   def open(self):
     self.nca = Dataset(self.ncaPath, "r+")
- 
-    for group in self.nca.groups:
-      self.netcdfGroups[group] = NetCDF2DGroup(self, self.nca, group)
+    for groupname in self.nca.groups:
+      self.groups[groupname] = NetCDF2DGroup(self, self.nca, groupname)
   
   def close(self):
     self.nca.close()
 
-  def getSummary(self):
+  def info(self):
     return NetCDFSummary(self.ncaPath)
     
-
-  def getVShape(self,gname,vname):
-    netcdfGroups = self.netcdfGroups
-    if not gname in netcdfGroups:raise Exception("Group does not exist")
-    return self.netcdfGroups[gname].shape
-  
-  def getVAttributes(self,gname,vname):
-    netcdfGroups = self.netcdfGroups
-    if not gname in netcdfGroups:raise Exception("Group does not exist")
-    return self.netcdfGroups[gname].attributes[vname]
-  
+  def _item_(self,idx):
+    if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("groupname and variablename are required")
+    
+    idx = list(idx)
+    groupname = idx.pop(0)
+    idx = tuple(idx)
+    
+    groups = self.groups
+    if not groupname in groups:raise Exception("Group does not exist")
+    group = groups[groupname]
+    return group,idx
   
   def __getitem__(self, idx):
     """
-    Needs atleast two axes, name of group and variable.
-     i.e: ["s","u"]
-          [None,"f"]
+      ["{groupname}","{variablename}",{...indices...}]
     """
-    if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
-    idx = list(idx)
-    
-    gname = idx.pop(0)
-    src_file = self.nca
-    if not gname in src_file.groups:raise Exception("Group does not exist")
-    src_group = src_file.groups[gname]
-    netcdfGroup = self.netcdfGroups[src_group.name]
-    data = netcdfGroup[tuple(idx)]
+    group,idx=self._item_(idx)
+    data = group[idx]
     self.cache.clearOldest()
     return data
-  
-      
       
   def __setitem__(self, idx,value):
     """
-    Needs atleast two axes, name of group and variable.
-     i.e: ["s","u"]
-          [None,"f"]
+      ["{groupname}","{variablename}",{...indices...}]=np.array()
     """    
-    if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("Needs name of group and variable")
-    idx = list(idx)
-    
-    gname = idx.pop(0)
-    src_file = self.nca
-    if not gname in src_file.groups:raise Exception("Group does not exist")
-    src_group = src_file.groups[gname]
-    netcdfGroup = self.netcdfGroups[src_group.name]
-    netcdfGroup[tuple(idx)]=value
+    group,idx=self._item_(idx)
+    group[idx]=value
     self.cache.clearOldest()

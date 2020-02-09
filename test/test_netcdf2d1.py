@@ -8,68 +8,78 @@ Input = dict(
   name="input1",
   cacheLocation=r"../s3",
   localOnly=True,
-  autoUpload=True,
   bucket="merac-dev",
   cacheSize=10.0,
   ncSize=1.0,
   nca = dict(
     metadata=dict(title="Input1"),
-    dimensions = [
-      dict(name="npe" ,value=3),
-      dict(name="nelem" ,value=500),
-      dict(name="nnode" ,value=1000),
-      dict(name="ntime" ,value=2),
-    ],
-    groups=[
-      dict(name="elem",dimensions=["nelem","npe"],variables=[
-        dict(name="elem",type="f4", units="" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="time",dimensions=["ntime"],variables=[
-        dict(name="time",type="f4",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="nodes",dimensions=["nnode"],variables=[
-        dict(name="bed",type="f4",units="m" ,standard_name="" ,long_name=""),
-        dict(name="friction",type="f4" ,units="" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="s" ,dimensions=["ntime", "nnode"] ,variables=[
-        dict(name="a",type="f4",units="m" ,standard_name="" ,long_name=""),
-        ]),
-      dict(name="t" ,dimensions=["nnode" ,"ntime"] ,variables=[
-        dict(name="a",type="f4",units="m" ,standard_name="" ,long_name=""),
-        ]),
-    ]
+    dimensions = {"nnode":1000,"ntime":2},
+    groups={
+      "time":{"dimensions":["ntime"],"variables":{
+          "time":{"type":"f8", "units":"hours since 1970-01-01 00:00:00.0","calendar":"gregorian" ,"standard_name":"Datetime" ,"long_name":"Datetime"}
+        }
+      },
+      "nodes":{"dimensions":["nnode"],"variables":{
+          "bed":{"type":"f4", "units":"m" ,"standard_name":"Bed Elevation, m" ,"long_name":"Description of data source"},
+          "friction":{"type":"f4", "units":"" ,"standard_name":"Bed Friction (Manning's)" ,"long_name":"Description of data source"}
+        }
+      },
+      "s":{"dimensions":["ntime","nnode"],"variables":{
+          "a":{"type":"f4", "units":"m" ,"standard_name":"a variable" ,"long_name":"Description of a"}
+        }
+      },
+      "t":{"dimensions":["nnode","ntime"],"variables":{
+          "a":{"type":"f4", "units":"m" ,"standard_name":"a variable" ,"long_name":"Description of a"}
+        }
+      }
+    }
   )
 )
 
 def test_NetCDF2D_1():
-  shutil.rmtree(Input['cacheLocation'])
-  # Create and save NetCDF2D object
+  """
+  Basic testing to test all features: create, write & read, caching & s3 commands.
+  Logical process:
+    localOnly:true
+    create (check basic parameters)
+    write
+    read (check values)
+    upload to s3
+    delete cache (check non-existing files)
+    read (autodownloads from s3 and check values)
+    delete cache
+    delete s3 (check non-existing files in s3)
+    
+    localOnly:false
+    create (check basic parameters)
+    write
+    delete cache (check non-existing files)
+    read (check values)
+    delete cache
+    delete s3 (check non-existing files in s3)
+    
+  ----------
+  """
   netcdf2d=NetCDF2D(Input)
   
-  # Get variable shape, create dummy data using arange and save it to netcdf2d:
-  #  1 parameter is name of group
-  #  2 parameter is name of variable
-  elemshape = netcdf2d.getVShape("elem","elem")
-  elemvalue = np.arange(np.prod(elemshape)).reshape(elemshape)
-  netcdf2d["elem","elem"] = elemvalue
-  
-  # Read variable and compare with the array above
-  np.testing.assert_array_equal(netcdf2d["elem","elem"], elemvalue)
-  
+  # Test metadata info
+  info = netcdf2d.info()
+  assert info['metadata']['title']==Input['nca']['metadata']['title']
+
   # Write and read "time" variable
-  timeshape = netcdf2d.getVShape("time","time")
+  timeshape = netcdf2d.groups["time"].shape
   timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
   netcdf2d["time","time"] = timevalue
   np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
   
   # Write and read "bed" variable
-  bedshape = netcdf2d.getVShape("nodes","bed")
+  bedshape = netcdf2d.groups["nodes"].shape
   bedvalue = np.arange(np.prod(bedshape)).reshape(bedshape)
   netcdf2d["nodes","bed"] = bedvalue
   np.testing.assert_array_equal(netcdf2d["nodes","bed"], bedvalue)
   
   # Write and read "a" variable
-  sashape = netcdf2d.getVShape("s","a")
+  sashape = netcdf2d.groups["s"].shape
   savalue = np.arange(np.prod(sashape)).reshape(sashape)
   netcdf2d["s","a"] = savalue
   np.testing.assert_array_equal(netcdf2d["s","a"], savalue)
@@ -78,20 +88,21 @@ def test_NetCDF2D_1():
   netcdf2d["s","a",0,100:200] = 0.0
   np.testing.assert_array_equal(netcdf2d["s","a",0,100:200], np.zeros(100))
   
-  tashape = netcdf2d.getVShape("t","a")
+  tashape = netcdf2d.groups["t"].shape
   tavalue = np.arange(np.prod(tashape)).reshape(tashape)
   netcdf2d["t","a"] = tavalue
   np.testing.assert_array_equal(netcdf2d["t","a"], tavalue)
+  # netcdf2d.cache.delete()
 
 def test_NetCDF2D_1b():
   # Simple test case to verify upload, clear cache and download from s3
   netcdf2d=NetCDF2D(Input)
   netcdf2d.cache.uploadNCA()
   netcdf2d.cache.uploadNC()
-  netcdf2d.cache.clear()
+  netcdf2d.cache.clearNCs()
   
   # Write and read "bed" variable
-  bedshape = netcdf2d.getVShape("nodes","bed")
+  bedshape = netcdf2d.groups["nodes"].shape
   bedvalue = np.arange(np.prod(bedshape)).reshape(bedshape)
   netcdf2d["nodes","bed"] = bedvalue
   np.testing.assert_array_equal(netcdf2d["nodes","bed"], bedvalue)
@@ -99,4 +110,4 @@ def test_NetCDF2D_1b():
 
 if __name__ == "__main__":
   test_NetCDF2D_1()
-  test_NetCDF2D_1b()
+  # test_NetCDF2D_1b()

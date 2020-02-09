@@ -24,34 +24,27 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
   """  
   if folder is None: folder = os.getcwd()
   if metadata is None: metadata = dict()
-  if dimensions is None: dimensions = []
-  if variables is None: variables = []
-  if groups is None: groups = []
+  if dimensions is None: dimensions = {}
+  if variables is None: variables = {}
+  if groups is None: groups = {}
   
   with Dataset(filePath, "w") as src_file:
     # Write metadata
-    if "title" in metadata: src_file.title = metadata["title"]
-    if "institution" in metadata: src_file.institution = metadata["institution"]
-    if "source" in metadata: src_file.source = metadata["source"]
-    if "history" in metadata: src_file.history = metadata["history"]
-    if "references" in metadata: src_file.references = metadata["references"]
-    if "comment" in metadata: src_file.comment = metadata["comment"]
+    for key in metadata:
+      setattr(src_file, key, metadata[key])
     
-    
-    for dimension in dimensions:
-      if not 'name' in dimension:raise Exception("Dimension needs a name")
-      if not 'value' in dimension:raise Exception("Dimension needs a value")
-      src_file.createDimension(dimension['name'], dimension['value'])
+    for name in dimensions:
+      src_file.createDimension(name, dimensions[name])
     
     createVariables(src_file,variables)
 
-    for group in groups:
-      if not 'name' in group:raise Exception("Group needs a name")
+    for name in groups:
+      group = groups[name]
       if not 'variables' in group:raise Exception("Group needs variables")
       if not 'dimensions' in group:raise Exception("Group needs dimensions")
       
-      src_group = src_file.createGroup(group["name"])
-      groupPath = os.path.join(folder, group["name"])
+      src_group = src_file.createGroup(name)
+      groupPath = os.path.join(folder, name)
       if not os.path.exists(groupPath): os.makedirs(groupPath)
 
       shapeArray=[]
@@ -92,20 +85,20 @@ def createVariables(src_file,variables,groupDimensions=None):
   dimensions: default dimensions, optional
   """ 
   
-  for var in variables:
-    if not 'name' in var:raise Exception("Variable need a name")
-    if not 'type' in var:raise Exception("Variable need a type")
+  for name in variables:
+    variable = variables[name]
+    if not 'type' in variable:raise Exception("Variable need a type")
     if groupDimensions is None:
-      if not 'dimensions' in var:raise Exception("Variable need dimensions")
-      dimensions = var['dimensions']
+      if not 'dimensions' in variable:raise Exception("Variable need dimensions")
+      dimensions = variable['dimensions']
     else:
       dimensions=groupDimensions
     
-    _var = src_file.createVariable(var["name"],var["type"], dimensions,zlib=True,least_significant_digit=3)
-    if "units" in var:_var.units = var["units"]
-    if "standard_name" in var:_var.standard_name = var["standard_name"]
-    if "long_name" in var:_var.long_name = var["long_name"]
-    if "calendar" in var:_var.calendar = var["calendar"]  
+    _var = src_file.createVariable(name,variable["type"], dimensions,zlib=True,least_significant_digit=3)
+    if "units" in variable:_var.units = variable["units"]
+    if "standard_name" in variable:_var.standard_name = variable["standard_name"]
+    if "long_name" in variable:_var.long_name = variable["long_name"]
+    if "calendar" in variable:_var.calendar = variable["calendar"]  
 
 
 
@@ -135,26 +128,26 @@ def NetCDFSummary(filePath):
     for id in src_file.ncattrs():
       metadata[id]=src_file.getncattr(id)
     
-    dimensions=[]
+    dimensions={}
     for id in src_file.dimensions:
-      dimensions.append(dict(name=id,value=len(src_file.dimensions[id])))
+      dimensions[id]=len(src_file.dimensions[id])
     
     variables =readVariables(src_file)
     
-    groups=[]
-    for id in list(src_file.groups): 
-      group = {"name":id}
+    groups={}
+    for id in list(src_file.groups):
+      group = {}
       group['variables']=readVariables(src_file.groups[id])
       group['dimensions']=src_file.groups[id].groupDimensions
-      groups.append(group)
+      groups[id]=group
     
     return dict(metadata=metadata,dimensions=dimensions,variables=variables,groups=groups)
 
 
 def readVariables(src):
-  variables=[]
+  variables={}
   for id in src.variables:
-    variable = {"name":id}
+    variable = {}
     variable['type'] = src.variables[id].dtype.name
     variable['dimensions'] = list(src.variables[id].dimensions)
     
@@ -162,7 +155,7 @@ def readVariables(src):
       if(ncattr=="least_significant_digit"):
         continue
       variable[ncattr]=src.variables[id].getncattr(ncattr)
-    variables.append(variable)
+    variables[id]=variable
   return variables
   
   

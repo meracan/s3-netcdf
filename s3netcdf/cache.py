@@ -1,4 +1,5 @@
 import os
+import shutil
 import glob
 
     
@@ -21,6 +22,7 @@ class Cache(object):
     folder = self.parent.folder
     return glob.glob(os.path.join(folder,"**/*.nc")) 
   
+
   def uploadNCA(self):
     self.parent.s3.upload(self.parent.ncaPath)
   
@@ -29,11 +31,14 @@ class Cache(object):
     for file in files:
       self.parent.s3.upload(file)
     
-  def clear(self):
+  def clearNCs(self):
     files = self.getNCs()
     for file in files:
       os.remove(file)
   
+  def delete(self):
+    shutil.rmtree(self.parent.folder)
+    
   def clearOldest(self):
     if self.parent.localOnly:return
     cacheSize = self.parent.cacheSize

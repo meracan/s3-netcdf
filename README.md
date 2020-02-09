@@ -41,7 +41,6 @@ Input JSON file needs to be converted into a python object `import json; json.lo
   "name":"input1",
   "cacheLocation":"../s3",
   "localOnly":true,
-  "autoUpload":true,
   "bucket":"merac-dev",
   "cacheSize":10.0,
   "ncSize":1.0,
@@ -83,7 +82,6 @@ The input for opening  a master file can be simplified. As a minimum, the input 
   "bucket":"merac-dev",
   
   "localOnly":true,
-  "autoUpload":true,
   "cacheSize":10.0,
   "ncSize":1.0
 }
@@ -95,8 +93,6 @@ Partition files are saved locally (caching) while reading and writing. By defaul
 The input option `cacheSize=1.0` defines the maximum cache size in MB. If exceeded, oldest cached partition files are removed. 
 
 The input option `localOnly=True` will ignore all S3 & caching commands. This is used for testing.
-
-The input option `autoUpload=True` automatically uploads local files to S3 after writing.
 
 The name of the `bucket={str}` in the input if files are uploaded to S3.
 
@@ -220,14 +216,12 @@ Here's an example:
 ```
 
 ## TODO
-- Clean metadata
-- Change Input reading, dimensions/groups should be dicts
+- Use json files in tests
+- Fix and create better performance tests
 - Find optimize shape to upload
-- Clean cache/s3 objects
-- Change clear, delete from cache and s3
 - Check precision decimal,least_significant_digit
-- Better performance tests
-- 
+- travis-ci and encryption keys
+- Complete documentation in code
 
 
 
