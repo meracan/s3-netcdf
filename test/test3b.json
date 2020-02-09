@@ -1,5 +1,5 @@
 {
-  "name":"input1",
+  "name":"input3",
   "cacheLocation":"../s3",
   "localOnly":true,
   "bucket":"merac-dev",

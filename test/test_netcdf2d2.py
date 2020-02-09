@@ -144,6 +144,8 @@ def test_NetCDF2D_2():
   np.testing.assert_array_equal(netcdf2d["ss","e",0:2,250:260,0,0], np.zeros(20).reshape((2,10)))
   netcdf2d["ss","e",0,0,0] = np.arange(36)
   np.testing.assert_array_equal(netcdf2d["ss","e",0,0,0], np.arange(36))
+  
+  netcdf2d.cache.delete()
 
 if __name__ == "__main__":
   test_NetCDF2D_2()
