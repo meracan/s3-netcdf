@@ -56,6 +56,7 @@ def test_NetCDF2D_2():
   Advanced testing to test index assignment
   ----------
   """
+  shutil.rmtree(Input['cacheLocation'])
   netcdf2d=NetCDF2D(Input)
   elemshape = netcdf2d.groups["elem"].shape
   elemvalue = np.arange(np.prod(elemshape)).reshape(elemshape)

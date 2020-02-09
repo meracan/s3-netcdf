@@ -10,12 +10,13 @@ pip install xxx
 git clone https://github.com/meracan/s3-netcdf.git
 pip install -e ./s3-netcdf
 ```
-#### With conda env
+#### With conda env and testing 
 ```bash
 conda create -n s3netcdf python=3.8
 conda activate s3netcdf
 git clone https://github.com/meracan/s3-netcdf.git
 pip install -e ./s3-netcdf
+
 ```
 
 ## Methodology
@@ -101,6 +102,7 @@ The name of the `bucket={str}` in the input if files are uploaded to S3.
 
 #### Basic
 ```python
+  import 
   # Create/Open master file
   netcdf2d=NetCDF2D(input)
   
@@ -161,6 +163,7 @@ netcdf2d.s3.delete()
 
 ## Testing
 ```bash
+conda install pytest
 mkdir ../s3
 pytest
 ```

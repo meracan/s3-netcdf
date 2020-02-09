@@ -1,10 +1,29 @@
 import setuptools
+import re
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+def load_requirements(name):
+    """Load a given requirement file and generate the corresponding data
+    structure that represents the requirements.
+ 
+    :param name: name of the requirement file to load.
+    :return: the corresponding data structure that represents the requirements.
+    """
+    dependencies= []
+    dep_matcher = re.compile('^[^=<>\\s]+\\s*[=<>]+\\s*[^=<>\\s]+$')
+    with open(name, 'r') as fd:
+        for line in fd.read().split("\n"):
+            line.strip()
+            if dep_matcher.match(line):
+                dependencies.append(line)
+    return dependencies
+ 
+
+
 setuptools.setup(
-    name="MERACAN-s3netcdf", # Replace with your own username
+    name="s3netcdf",
     version="0.0.1",
     author="Julien Cousineau",
     author_email="Julien.Cousineau@gmail.com",
@@ -12,7 +31,8 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/meracan/s3-netcdf",
-    packages=setuptools.find_packages(),
+    packages=["s3netcdf"],
+    install_requires=['numpy','netcdf4','boto3'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
