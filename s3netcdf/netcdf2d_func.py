@@ -88,13 +88,20 @@ def createVariables(src_file,variables,groupDimensions=None):
   for name in variables:
     variable = variables[name]
     if not 'type' in variable:raise Exception("Variable need a type")
+    if not 'least_significant_digit' in variable:
+      variable['least_significant_digit']=None
+      
     if groupDimensions is None:
       if not 'dimensions' in variable:raise Exception("Variable need dimensions")
       dimensions = variable['dimensions']
     else:
       dimensions=groupDimensions
     
-    _var = src_file.createVariable(name,variable["type"], dimensions,zlib=True,least_significant_digit=3)
+    _var = src_file.createVariable(name,
+      variable["type"], 
+      dimensions,
+      zlib=True,
+      least_significant_digit=variable['least_significant_digit'])
     if "units" in variable:_var.units = variable["units"]
     if "standard_name" in variable:_var.standard_name = variable["standard_name"]
     if "long_name" in variable:_var.long_name = variable["long_name"]
@@ -194,6 +201,7 @@ def getChildShape(shape,dtype="f4",ncSize=1.0):
   """
   
   itemSize = np.dtype(dtype).itemsize
+  # 1024**2 = 1MB
   ncSize = ncSize * 1024.0**2
   
   items = 1

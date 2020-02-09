@@ -25,9 +25,7 @@ S3-NetCDF creates a master file ".nca" from an input object. The input contains 
 
 Variables need to be stored in a partition group. Each partition group has unique variable's dimensions. Multiple variables can be stored under the same partition group (if they have the same dimensions).
 
-The maximum size of partition file is set using the option input `ncSize=1.0`(MB). The size is approximative since files are automatically compressed and rounded using `least_significant_digit=3`.
-
-
+The maximum size of partition file (umcompressed) is set using the option input `ncSize=1.0`(MB). The size is approximative depending on the shape of the array. The partional files are automatically compressed (~100 smaller). The attribute `least_significant_digit={number}` can be added in the variable object to further reduce file size. Remember `f4` and `f8` contains 7 digits 16 digits, respectively. S3 http compression (gzip) is not used since partition files are already compressed.
 
 ##### Input
 The input for creating a master file contains s3 info, metadata, dimensions, partition group, variables, etc.
@@ -98,19 +96,20 @@ The input option `localOnly=True` will ignore all S3 & caching commands. This is
 The name of the `bucket={str}` in the input if files are uploaded to S3.
 
 
+
 ## Usage
 
 #### Basic
 ```python
-  import 
-  # Create/Open master file
-  netcdf2d=NetCDF2D(input)
-  
-  # Writing
-  netcdf2d["{groupname}","{variablename}",{...indices...}]= np.array(...)
-  
-  # Reading
-  netcdf2d["{groupname}","{variablename}",{...indices...}]
+from s3netcdf import NetCDF2D 
+# Create/Open master file
+netcdf2d=NetCDF2D(input)
+
+# Writing
+netcdf2d["{groupname}","{variablename}",{...indices...}]= np.array(...)
+
+# Reading
+netcdf2d["{groupname}","{variablename}",{...indices...}]
 ```
 Assigning values to indexed arrays is the same as [numpy](https://docs.scipy.org/doc/numpy/user/basics.indexing.html). Note: string values was not tested.
 
@@ -176,17 +175,22 @@ PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d_func.py
 PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d1.py
 PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d2.py
 ```
-## Running in parralel
-
-
-
 ## AWS S3 Credentials
 Credentials (for example), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION needs to be save in environment variables. For more information, check [link](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html).
 
 The credentials needs access to `get`, `put` and `delete` (if deleting is required) to the bucket.
 
-## Performance
-The application is single threaded. A threaded application by modifying the `f()` function in `__getitem__` and `__setitem__` is possible. The IO (reading-uncompressing and writing-compressing) NetCDF files locally also plays an important role in performance.
+## Performance and Benchmark
+
+### Memory profiling
+```bash
+conda install guppy
+PYTHONPATH=../s3-netcdf/ python3 bench/bench_1.py
+
+```
+
+### Single and multi-threaded
+The application is single threaded. A threaded application is possible by modifying the `f()` function in `__getitem__` and `__setitem__`. The IO (reading-uncompressing and writing-compressing) NetCDF files locally can also be the limited factor.
 
 ### Single-Core
 #### Writing
@@ -213,16 +217,11 @@ The following sample performance test was done by generating  arrays using numpy
 
 ### Multiple-Core
 Running multiple single-threaded application is possible. This is memory intensive since each application requires the same amount of memory.
-Here's an example:
-```python
-
-```
+TODO
 
 ## TODO
-- Use json files in tests
-- Fix and create better performance tests
+- Fix bench folder and create better performance tests
 - Find optimize shape to upload
-- Check precision decimal,least_significant_digit
 - travis-ci and encryption keys
 - Complete documentation in code
 

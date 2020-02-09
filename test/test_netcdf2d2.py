@@ -11,7 +11,7 @@ Input = dict(
   
   bucket="merac-dev",
   cacheSize=10.0,
-  ncSize=10.0,
+  ncSize=1.0,
   
   nca = dict(
     metadata=dict(title="Input2"),

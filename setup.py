@@ -1,26 +1,7 @@
 import setuptools
-import re
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
-
-def load_requirements(name):
-    """Load a given requirement file and generate the corresponding data
-    structure that represents the requirements.
- 
-    :param name: name of the requirement file to load.
-    :return: the corresponding data structure that represents the requirements.
-    """
-    dependencies= []
-    dep_matcher = re.compile('^[^=<>\\s]+\\s*[=<>]+\\s*[^=<>\\s]+$')
-    with open(name, 'r') as fd:
-        for line in fd.read().split("\n"):
-            line.strip()
-            if dep_matcher.match(line):
-                dependencies.append(line)
-    return dependencies
- 
-
 
 setuptools.setup(
     name="s3netcdf",
