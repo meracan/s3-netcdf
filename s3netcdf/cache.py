@@ -45,7 +45,6 @@ class Cache(object):
     files = self.getNCs()
     _files = [{"path":file,"stat":os.stat(file)} for file in files]
     _files.sort(key=lambda x: x['stat'].st_mtime, reverse=True)
-    
     tsize=0
     for file in _files:
       fsize = file['stat'].st_size

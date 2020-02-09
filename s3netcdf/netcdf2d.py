@@ -103,6 +103,9 @@ class NetCDF2D(object):
 
   def info(self):
     return NetCDFSummary(self.ncaPath)
+  
+  def setlocalOnly(self,value):
+    self.localOnly=value
     
   def _item_(self,idx):
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("groupname and variablename are required")
