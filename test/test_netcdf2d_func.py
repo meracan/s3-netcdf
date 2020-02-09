@@ -1,3 +1,4 @@
+import os
 import pytest
 import numpy as np
 from netCDF4 import Dataset
@@ -133,8 +134,9 @@ def test_dataWrapper():
   None
 
 def test_createNetCDF():
-  filePath = "test1.nc"
+  
   folder = "../s3"
+  filePath = os.path.join(folder,"test1.nc")
   metadata=dict(title="Mytitle")
   dimensions = dict(
     npe=3,
