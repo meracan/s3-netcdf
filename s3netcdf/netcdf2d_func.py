@@ -88,8 +88,7 @@ def createVariables(src_file,variables,groupDimensions=None):
   for name in variables:
     variable = variables[name]
     if not 'type' in variable:raise Exception("Variable need a type")
-    if not 'least_significant_digit' in variable:
-      variable['least_significant_digit']=None
+    lsd = variable['least_significant_digit'] if 'least_significant_digit' in variable else None
       
     if groupDimensions is None:
       if not 'dimensions' in variable:raise Exception("Variable need dimensions")
@@ -101,7 +100,7 @@ def createVariables(src_file,variables,groupDimensions=None):
       variable["type"], 
       dimensions,
       zlib=True,
-      least_significant_digit=variable['least_significant_digit'])
+      least_significant_digit=lsd)
     if "units" in variable:_var.units = variable["units"]
     if "standard_name" in variable:_var.standard_name = variable["standard_name"]
     if "long_name" in variable:_var.long_name = variable["long_name"]
@@ -159,8 +158,9 @@ def readVariables(src):
     variable['dimensions'] = list(src.variables[id].dimensions)
     
     for ncattr in src.variables[id].ncattrs():
-      if(ncattr=="least_significant_digit"):
-        continue
+      # if(ncattr=="least_significant_digit"):
+        
+        # continue
       variable[ncattr]=src.variables[id].getncattr(ncattr)
     variables[id]=variable
   return variables
@@ -425,6 +425,8 @@ def getPartitions(indices,shape,masterShape):
   # print(uniquePartitions)
   return uniquePartitions
 
+# from memory_profiler import profile
+# @profile
 def dataWrapper(idx, shape,masterShape,f,value=None):
   """
   Data wrapper
@@ -485,7 +487,6 @@ def dataWrapper(idx, shape,masterShape,f,value=None):
     # print(masterIndices[:,:n],part[None,:],partitions)
     idata = np.where(idata)[0]
     ipart = masterIndices[idata][:,n:]
-    
     data=f(part,idata,ipart,data,value)
   return data
 
@@ -494,6 +495,9 @@ def getItemNetCDF(*args,**kwargs):
 
 def setItemNetCDF(*args,**kwargs):
   return _getset_ItemNetCDF(*args,**kwargs,get=False)
+
+
+
 
 def _getset_ItemNetCDF(var,d,ipart,idata,get=True):
   """

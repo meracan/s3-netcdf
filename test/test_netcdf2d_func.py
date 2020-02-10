@@ -145,7 +145,7 @@ def test_createNetCDF():
     nelem=10
   )
   variables=dict(
-    a=dict(type="float32" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
+    a=dict(type="float32" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name="",least_significant_digit=3),
     lat=dict(type="float64" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
     lng=dict(type="float64" ,dimensions=["nnode"] ,units="m" ,standard_name="" ,long_name=""),
     elem=dict(type="int32" ,dimensions=["nelem"] ,units="m" ,standard_name="" ,long_name=""),

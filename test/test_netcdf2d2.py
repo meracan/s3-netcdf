@@ -1,4 +1,3 @@
-import shutil
 import pytest
 import numpy as np
 from s3netcdf import NetCDF2D
