@@ -123,7 +123,7 @@ def test_getPartitions():
   
 
 def test_dataWrapper():
-  def f(part,idata,ipart,data):
+  def f(part,idata,ipart,data,uvalue):
     np.testing.assert_array_equal(part,np.array([0,0],dtype="int32"))
     np.testing.assert_array_equal(idata.shape,(32769))
     np.testing.assert_array_equal(ipart.shape,(32769,2))
@@ -184,11 +184,222 @@ def test_createNetCDF():
   
 
 if __name__ == "__main__":
-  test_getChildShape()
-  test_getMasterShape()
-  test_parseDescriptor()
-  test_getIndices()
+  # test_getChildShape()
+  # test_getMasterShape()
+  # test_parseDescriptor()
+  # test_getIndices()
   test_getMasterIndices()
-  test_getPartitions()
-  test_dataWrapper()
-  test_createNetCDF()
+  # test_getPartitions()
+  # test_dataWrapper()
+  # test_createNetCDF()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

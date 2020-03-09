@@ -5,7 +5,7 @@ import time
 
 def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=None,groups=None,ncSize=1.0):
   """
-  Create NetCDF
+  Create typical NetCDF file based on set of variables
   
   Parameters
   ----------
@@ -19,6 +19,7 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
   
   Notes
   -----
+  Only applicable for 1 layer of groups
   
   
   """  
@@ -74,7 +75,7 @@ def createVariables(src_file,variables,groupDimensions=None):
   Parameters
   ----------
   src_file: NetCDF.Dataset
-  variables:[object], list of objects
+  variables:{object}, dict of objects
     name:str 
     type:str
     dimensions:[str],list of str 
@@ -82,7 +83,12 @@ def createVariables(src_file,variables,groupDimensions=None):
     standard_name:str,optional
     long_name:str,optional
     calendar:str,optional
-  dimensions: default dimensions, optional
+  groupDimensions: default dimensions for group, optional
+  
+  Notes
+  ----------
+  groupDimensions takes priority over dimensions in variables
+  
   """ 
   
   for name in variables:
@@ -107,8 +113,6 @@ def createVariables(src_file,variables,groupDimensions=None):
     if "calendar" in variable:_var.calendar = variable["calendar"]  
 
 
-
-
 def NetCDFSummary(filePath):
   '''
   NetCDFSummary outputs metadata,dimensions, variables.
@@ -116,18 +120,15 @@ def NetCDFSummary(filePath):
   Parameters
   ----------
   filePath:Path
-  
 
   Returns
   -------
-  dict : dict
-      metadata:
-      dimensions:
-      variables:
-  
+  dict : {metadata,dimensions,variables,groups}
+  Notes
+  -----
+  Only applicable for 1 layer of groups
+  Each group contains variables and dimensions
   '''
-  
-  
   
   with Dataset(filePath, "r") as src_file:
     metadata={}
@@ -151,6 +152,17 @@ def NetCDFSummary(filePath):
 
 
 def readVariables(src):
+  '''
+  Reads and store NetCDF variables (type,dimensions,metadata) into dict.
+  
+  Parameters
+  ----------
+  src:netCDF4 object
+
+  Returns
+  -------
+  dict : {id:{type,dimensions,...metadata}}
+  '''
   variables={}
   for id in src.variables:
     variable = {}
@@ -158,9 +170,6 @@ def readVariables(src):
     variable['dimensions'] = list(src.variables[id].dimensions)
     
     for ncattr in src.variables[id].ncattrs():
-      # if(ncattr=="least_significant_digit"):
-        
-        # continue
       variable[ncattr]=src.variables[id].getncattr(ncattr)
     variables[id]=variable
   return variables
@@ -201,8 +210,7 @@ def getChildShape(shape,dtype="f4",ncSize=1.0):
   """
   
   itemSize = np.dtype(dtype).itemsize
-  # 1024**2 = 1MB
-  ncSize = ncSize * 1024.0**2
+  ncSize = ncSize * 1024.0**2 # 1024**2 = 1MB
   
   items = 1
   fileShape = np.ones(len(shape), dtype=np.int)
@@ -243,7 +251,7 @@ def getMasterShape(shape,return_childshape=False,**kwargs):
   out        = (10,2,1,5)    (A,B,a,b)
   The new dimensions (A,B) will be in the order as the child (a,b).
   
-  The lenght of out should be equal or larger than shape (x*y => A*B*a*b)
+  The lenght of output should be equal or larger than shape (x*y => A*B*a*b)
   
   Examples
   --------
@@ -263,14 +271,16 @@ def getMasterShape(shape,return_childshape=False,**kwargs):
   
 
 
-def parseDescritor(idx,shape,i=0,canTuple=True):
+def parseDescriptor(idx,shape,i=0,canTuple=True):
   """
   Parsing descriptor with specific shape
+  \
   
   Parameters
   ----------
   idx: slice,int,list,ndarray or tuple.
-  shape: ndarray (1D)
+  shape: ndarray (1D),dataShape
+    Original data shape
   i:int,optional.
     Default=0
     Axis position,starts on the left
@@ -285,10 +295,17 @@ def parseDescritor(idx,shape,i=0,canTuple=True):
   Notes
   -----
   First axis gets priority.
+  Will not return other axis if not specified,  check "getIndices"
   
   Examples
   --------
-  TODO
+  >>> a = [3, 7]
+  >>> parseDescriptor(0,a)
+    [0]
+  >>> parseDescriptor((slice(None,None,None)),a)
+    [0 1 2]
+  >>> parseDescriptor((slice(None,None,None),slice(None,None,None)),a)
+    [[0 1 2],[0 1 2 3 4 5 6]]
   """
   
   if isinstance(idx, slice):
@@ -306,63 +323,63 @@ def parseDescritor(idx,shape,i=0,canTuple=True):
     if not (canTuple):raise TypeError("Invalid argument type.")
     array=[]
     for j, t in enumerate(idx):
-      array.append(parseDescritor(t,shape,j,canTuple=False))
+      array.append(parseDescriptor(t,shape,j,canTuple=False))
     return array
   else:
     raise TypeError("Invalid argument type.")  
 
 def getIndices(idx,shape):
   """
-  Parsing descriptors and creating a index table
+  Parsing descriptors and creating a index table based on the shape
   
   Parameters
   ----------
   idx: slice,int,list,ndarray or tuple.
-  shape: ndarray (1D)
+  shape: ndarray (1D),dataShape
+    Original data shape
   
   Returns
   -------
-  out : ndarray
+  out : ndarray, indices
   
   Notes
   -----
   First axis gets priority.
+  Will return other axis if not specified
   
   Examples
   --------
-  TODO
+  >>> master = getMasterShape([8, 32768])
+  >>> getIndices(0,a)
+    [[0],[0 1 2 3 4 5 6]]
+  >>> getIndices((slice(None,None,None)),a)
+    [[0 1 2],[0 1 2 3 4 5 6]]
+  >>> getIndices((slice(None,None,None),slice(None,None,None)),a)
+    [[0 1 2],[0 1 2 3 4 5 6]]
   """
   
-  array = parseDescritor(idx,shape,0,canTuple=True)
+  array = parseDescriptor(idx,shape,0,canTuple=True)
   if not isinstance(array, list):array=[array]
   for i in range(len(array), len(shape)):
-    # Need to fill the remainder of the array if not provided
+    # Note: This loop fills the remainder of the array if not provided
     array.append(np.arange(0, shape[i], dtype="i4"))
   return np.array(array) 
 
 def getMasterIndices(indices,shape,masterShape):
   """
-  Get indices in master format from data
+  Converts data indices to master indices
   
   Parameters
   ----------
   indices:  ndarray
-  shape: ndarray (1D)
+  shape: ndarray (1D),dataShape
     Original data shape
   masterShape: ndarray (1D)
     Master shape
   
   Returns
   -------
-  out : ndarray
-  
-  Notes
-  -----
-  TODO
-  
-  Examples
-  --------
-  TODO
+  out : ndarray, indices
   """ 
   
   if isinstance(indices[0],np.ndarray): # Check if 1D or multidimentional
@@ -379,22 +396,20 @@ def getPartitions(indices,shape,masterShape):
   Parameters
   ----------
   indices:  ndarray
-  shape: ndarray (1D)
+  shape: ndarray (1D),dataShape
     Original data shape
   masterShape: ndarray (1D)
     Master shape
   
   Returns
   -------
-  out : ndarray
+  out : ndarray, partitions
   
   Notes
   -----
-  TODO
-  
-  Examples
-  --------
-  TODO
+  Instead of getting all indices, get only the limits (min, max) of each partition.
+  Getting all indices is expensive. 
+
   """    
   limits=[]
   n = len(shape)
@@ -407,63 +422,31 @@ def getPartitions(indices,shape,masterShape):
       l=np.append(l,_max)
     limits.append(l)
     
-
-  
-  
   meshgrid = np.meshgrid(*limits,indexing="ij")
-  
   limits = np.array(meshgrid).T
-  # print(limits)
-  
   limits = np.concatenate(limits)
-  # limits = np.squeeze(limits)
-  # print(limits)
   masterLimits = getMasterIndices(limits.T,shape,masterShape)
-  # print(masterLimits)
   allPartitions=masterLimits[:, :n]
   uniquePartitions = np.unique(allPartitions,axis=0)
-  # print(uniquePartitions)
   return uniquePartitions
 
-# from memory_profiler import profile
-# @profile
-def dataWrapper(idx, shape,masterShape,f,value=None):
+
+def checkValue(value,idx,shape):
   """
-  Data wrapper
-  Gets proper partitions, indices in the master array from the data array (idx)
-  The callback function loops on every partition file.
-  
+  A few checks when setting data
+
   Parameters
   ----------
+  value:  ndarray
   idx:  ndarray
-  shape: ndarray (1D)
+  shape: ndarray (1D),dataShape
     Original data shape
-  masterShape: ndarray (1D)
-    Master shape
-  f: callback function (part,idata,iparts)
+  
   Returns
   -------
-  out : ndarray
-  
-  Notes
-  -----
-  TODO
-  
-  Examples
-  --------
-  TODO
-  """    
-  
-  n = len(shape)
-  indices = getIndices(idx,shape)
-  partitions = getPartitions(indices, shape,masterShape)
-  masterIndices = getMasterIndices(indices,shape,masterShape)
-  
-  dataShape=[]
-  for i in range(len(indices)):
-    dataShape.append(len(indices[i]))
-  dataShape=tuple(dataShape)
-  
+  out : value
+  """ 
+  dataShape=getDataShape(getIndices(idx,shape))
   if(value is not None):
     if isinstance(value,list):
       value=np.array(value)
@@ -478,16 +461,62 @@ def dataWrapper(idx, shape,masterShape,f,value=None):
     if(np.prod(dataShape)!=np.prod(value.shape)):
       # TODO, try repeat row...
       raise Exception("Check input. Shape does not match {} and {}".format(dataShape,value.shape))
+  return value
+
+def getDataShape(indices):
+  """
+  Create new data shape based on the selected index array (from idx)
+
+  Parameters
+  ----------
+  indices:  ndarray
   
+  Returns
+  -------
+  out : ndarray
+  """ 
+  dataShape=[]
+  for i in range(len(indices)):
+    dataShape.append(len(indices[i]))
+  dataShape=tuple(dataShape)
+  return dataShape
+
   
+# from memory_profiler import profile
+# @profile
+def dataWrapper(idx, shape,masterShape,f):
+  """
+  Data wrapper
+  Gets proper partitions, indices in the master array from the data array (idx)
+  The callback function loops on every partition file.
+  
+  Parameters
+  ----------
+  idx:  ndarray
+  shape: ndarray (1D),dataShape
+    Original data shape
+  masterShape: ndarray (1D)
+    Master shape
+  f: callback function (part,idata,iparts)
+  Returns
+  -------
+  out : ndarray
+  
+  """    
+  
+  n = len(shape)
+  indices = getIndices(idx,shape)
+  partitions = getPartitions(indices, shape,masterShape)
+  masterIndices = getMasterIndices(indices,shape,masterShape)
+  
+  dataShape = getDataShape(indices)
   data = np.empty(dataShape)
   
   for part in partitions:
     idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
-    # print(masterIndices[:,:n],part[None,:],partitions)
     idata = np.where(idata)[0]
     ipart = masterIndices[idata][:,n:]
-    data=f(part,idata,ipart,data,value)
+    data=f(part,idata,ipart,data)
   return data
 
 def getItemNetCDF(*args,**kwargs):

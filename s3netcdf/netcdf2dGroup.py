@@ -2,7 +2,7 @@ import os
 import numpy as np
 from netCDF4 import Dataset
 from netCDF4 import num2date, date2num
-from .netcdf2d_func import createNetCDF,dataWrapper,getItemNetCDF,setItemNetCDF
+from .netcdf2d_func import createNetCDF,dataWrapper,getItemNetCDF,setItemNetCDF,getDataShape,checkValue,getIndices
 import time
 np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
@@ -110,7 +110,7 @@ class NetCDF2DGroup(object):
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]
     
-    def f(part,idata,ipart,data,uvalue):
+    def f(part,idata,ipart,data):
       strpart = "_".join(part.astype(str))
       filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
       
@@ -150,10 +150,10 @@ class NetCDF2DGroup(object):
     if "calendar" in attributes:
       value=date2num(value,units=attributes["units"],calendar=attributes["calendar"])
     
+    value= checkValue(value,idx,self.shape)
     
-    # start = time.time() 
-    def f(part,idata,ipart,data,uvalue):
-      
+    
+    def f(part,idata,ipart,data):
       strpart = "_".join(part.astype(str))
       filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
       
@@ -163,14 +163,12 @@ class NetCDF2DGroup(object):
           if s3.exists(filepath):s3.download(filepath)
           else:createNetCDF(filepath,**self.variablesSetup[vname])  
       
-      # start = time.time()  
+    
       with Dataset(filepath, "r+") as src_file:
         var = src_file.variables[vname]
-        setItemNetCDF(var,uvalue,ipart,idata)
-      # print(time.time() - start)
+        setItemNetCDF(var,value,ipart,idata)
       if not localOnly:
         s3.upload(filepath)
       
       
-    dataWrapper(idx,self.shape,self.master,f,value)
-    # print(time.time() - start)
+    dataWrapper(idx,self.shape,self.master,f)
