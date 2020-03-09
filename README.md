@@ -1,9 +1,10 @@
 # s3-netcdf
 S3-NetCDF is a Python library to read / write NetCDF files to S3. This library partitions large NetCDF files into smaller chunks to retrieve data from s3 cost-effectively.
 
+
 ## Installation
 ```bash
-pip install xxx
+pip install meracan-s3netcdf
 ```
 #### From local folder
 ```bash
