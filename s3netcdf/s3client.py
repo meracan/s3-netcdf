@@ -6,14 +6,7 @@ s3 = boto3.client('s3')
     
 class S3Client(object):
   """
- 
-  
-  Parameters
-  ----------
- 
-  Attributes
-  ----------
-
+  Interface to communicate with S3
   
   """
   def __init__(self, parent):

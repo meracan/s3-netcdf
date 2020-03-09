@@ -431,13 +431,60 @@ def getPartitions(indices,shape,masterShape):
   return uniquePartitions
 
 
-def checkData():
+def checkValue(value,idx,shape):
+  """
+  A few checks when setting data
+
+  Parameters
+  ----------
+  value:  ndarray
+  idx:  ndarray
+  shape: ndarray (1D),dataShape
+    Original data shape
   
+  Returns
+  -------
+  out : value
+  """ 
+  dataShape=getDataShape(getIndices(idx,shape))
+  if(value is not None):
+    if isinstance(value,list):
+      value=np.array(value)
+      value = value.flatten()
+    if isinstance(value,np.ndarray):
+      value = value.flatten()
+    if isinstance(value,(int,float)):
+      temp = np.zeros(np.prod(dataShape))+value
+      value=temp
+    if isinstance(value,str):
+      raise Exception("Check Input. Not tested for string")
+    if(np.prod(dataShape)!=np.prod(value.shape)):
+      # TODO, try repeat row...
+      raise Exception("Check input. Shape does not match {} and {}".format(dataShape,value.shape))
+  return value
 
+def getDataShape(indices):
+  """
+  Create new data shape based on the selected index array (from idx)
 
+  Parameters
+  ----------
+  indices:  ndarray
+  
+  Returns
+  -------
+  out : ndarray
+  """ 
+  dataShape=[]
+  for i in range(len(indices)):
+    dataShape.append(len(indices[i]))
+  dataShape=tuple(dataShape)
+  return dataShape
+
+  
 # from memory_profiler import profile
 # @profile
-def dataWrapper(idx, shape,masterShape,f,value=None):
+def dataWrapper(idx, shape,masterShape,f):
   """
   Data wrapper
   Gets proper partitions, indices in the master array from the data array (idx)
@@ -455,13 +502,6 @@ def dataWrapper(idx, shape,masterShape,f,value=None):
   -------
   out : ndarray
   
-  Notes
-  -----
-  TODO
-  
-  Examples
-  --------
-  TODO
   """    
   
   n = len(shape)
@@ -469,35 +509,14 @@ def dataWrapper(idx, shape,masterShape,f,value=None):
   partitions = getPartitions(indices, shape,masterShape)
   masterIndices = getMasterIndices(indices,shape,masterShape)
   
-  dataShape=[]
-  for i in range(len(indices)):
-    dataShape.append(len(indices[i]))
-  dataShape=tuple(dataShape)
-  
-  if(value is not None):
-    if isinstance(value,list):
-      value=np.array(value)
-      value = value.flatten()
-    if isinstance(value,np.ndarray):
-      value = value.flatten()
-    if isinstance(value,(int,float)):
-      temp = np.zeros(np.prod(dataShape))+value
-      value=temp
-    if isinstance(value,str):
-      raise Exception("Check Input. Not tested for string")
-    if(np.prod(dataShape)!=np.prod(value.shape)):
-      # TODO, try repeat row...
-      raise Exception("Check input. Shape does not match {} and {}".format(dataShape,value.shape))
-  
-  
+  dataShape = getDataShape(indices)
   data = np.empty(dataShape)
   
   for part in partitions:
     idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
-    # print(masterIndices[:,:n],part[None,:],partitions)
     idata = np.where(idata)[0]
     ipart = masterIndices[idata][:,n:]
-    data=f(part,idata,ipart,data,value)
+    data=f(part,idata,ipart,data)
   return data
 
 def getItemNetCDF(*args,**kwargs):

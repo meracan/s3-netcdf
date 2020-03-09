@@ -119,6 +119,7 @@ def test_NetCDF2D_2():
   np.testing.assert_array_equal(netcdf2d["ss","e",:2], np.squeeze(evalue[:2]))
   np.testing.assert_array_equal(netcdf2d["ss","e",1,0], np.squeeze(evalue[1,0]))
   np.testing.assert_array_equal(netcdf2d["ss","e",1,100:200], np.squeeze(evalue[1,100:200]))
+  np.testing.assert_array_equal(netcdf2d["ss","e",1:2,100:200], np.squeeze(evalue[1:2,100:200]))
   np.testing.assert_array_equal(netcdf2d["ss","e",1,[1,101,201]], np.squeeze(evalue[1,[1,101,201]]))
   np.testing.assert_array_equal(netcdf2d["ss","e",:2,299], np.squeeze(evalue[:2,299]))
   np.testing.assert_array_equal(netcdf2d["ss","e",:2,100:200], np.squeeze(evalue[:2,100:200]))
