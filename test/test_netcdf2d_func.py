@@ -4,7 +4,7 @@ import numpy as np
 from netCDF4 import Dataset
 from s3netcdf.netcdf2d_func import createNetCDF,NetCDFSummary,\
   createVariables,getChildShape,getMasterShape,parseDescriptor,\
-  getIndices,getMasterIndices,getPartitions,dataWrapper
+  getIndices,getMasterIndices,getPartitions
 
 shape1 = [3, 7]
 shape2a = [8, 32768]  # 1MB
@@ -122,16 +122,6 @@ def test_getPartitions():
   
   
 
-def test_dataWrapper():
-  def f(part,idata,ipart,data):
-    np.testing.assert_array_equal(part,np.array([0,0],dtype="int32"))
-    np.testing.assert_array_equal(idata.shape,(32769))
-    np.testing.assert_array_equal(ipart.shape,(32769,2))
-  
-  master2b = getMasterShape(shape2b)  
-  dataWrapper((0),shape2b,master2b,f)
-  None
-
 def test_createNetCDF():
   
   folder = "../s3"
@@ -190,5 +180,4 @@ if __name__ == "__main__":
   test_getIndices()
   test_getMasterIndices()
   test_getPartitions()
-  test_dataWrapper()
   test_createNetCDF()

@@ -15,7 +15,7 @@ pip install -e ./s3-netcdf
 conda create -n s3netcdf python=3.8
 conda activate s3netcdf
 git clone https://github.com/meracan/s3-netcdf.git
-pip install -e ./s3-netcdf
+pip install ./s3-netcdf
 
 ```
 
@@ -27,7 +27,7 @@ Variables need to be stored in a partition group. Each partition group has uniqu
 
 The maximum size of partition file (umcompressed) is set using the option input `ncSize=1.0`(MB). The size is approximative depending on the shape of the array. The partional files are automatically compressed (~100 smaller). The attribute `least_significant_digit={number}` can be added in the variable object to further reduce file size. Remember `f4` and `f8` contains 7 digits 16 digits, respectively. S3 http compression (gzip) is not used since partition files are already compressed.
 
-##### Input
+##### Input - Writting
 The input for creating a master file contains s3 info, metadata, dimensions, partition group, variables, etc.
 
 Metadata attributes are stored in the `metadata` object. It is recommended to use `title`, `institution`, `source`, `history`, `references`, and `comment`.
@@ -43,8 +43,9 @@ Input JSON file needs to be converted into a python object `import json; json.lo
   "bucket":"merac-dev",
   "cacheSize":10.0,
   "ncSize":1.0,
-  "metadata":{"title":"title-input1"},
+  
   "nca": {
+    "metadata":{"title":"title-input1"},
     "dimensions" : {"npe":3,"nelem":500,"nnode":1000,"ntime":2},
     "groups":{
       "elem":{"dimensions":["nelem","npe"],"variables":{
@@ -73,17 +74,37 @@ Input JSON file needs to be converted into a python object `import json; json.lo
 }
 ```
 
-The input for opening  a master file can be simplified. As a minimum, the input file should contain `name`,`cacheLocation` and `bucket`(if using S3).Input example to open a master file:
+##### Input - Reading
+The input for opening  a master file can be simplified. As a minimum, the input file should contain `name`,`cacheLocation` and `bucket`(if using S3).
+Input example to open a master file:
 ```json
 {
   "name":"input1",
   "cacheLocation":"../s3",
   "bucket":"merac-dev",
-  
-  "localOnly":true,
-  "cacheSize":10.0,
-  "ncSize":1.0
 }
+```
+
+## Usage
+#### Basic
+```python
+from s3netcdf import NetCDF2D 
+# Create/Open master file
+netcdf2d=NetCDF2D(input)
+
+# Writing
+# netcdf2d["{groupname}","{variablename}",{...indices...}]= np.array(...)
+netcdf2d["s","a"]= np.zeros((2,1000))
+
+# Reading
+# netcdf2d["{groupname}","{variablename}",{...indices...}]
+print(netcdf2d["s","a"])
+```
+Assigning values to indexed arrays is the same as [numpy](https://docs.scipy.org/doc/numpy/user/basics.indexing.html).
+
+Datetime values needs to be in `np.datetime64` as seconds. For example:
+```python
+timevalue=(np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')).astype("datetime64[s]")
 ```
 
 ##### S3, caching and localOnly
@@ -96,102 +117,18 @@ The input option `localOnly=True` will ignore all S3 & caching commands. This is
 The name of the `bucket={str}` in the input if files are uploaded to S3.
 
 
-
-## Usage
-#### Basic
-```python
-from s3netcdf import NetCDF2D 
-# Create/Open master file
-netcdf2d=NetCDF2D(input)
-
-# Writing
-netcdf2d["{groupname}","{variablename}",{...indices...}]= np.array(...)
-
-# Reading
-netcdf2d["{groupname}","{variablename}",{...indices...}]
-```
-Assigning values to indexed arrays is the same as [numpy](https://docs.scipy.org/doc/numpy/user/basics.indexing.html). Note: string values was not tested.
-
-#### Commands
-```python
-# Get information inside the master file
-netcdf2d.info()
-
-# Get group dimensional shape 
-netcdf2d.groups["{groupname}"].shape
-
-# Get group dimensional partition shape
-netcdf2d.groups["{groupname}"].child
-
-# Get variable's attributes
-netcdf2d.groups["{groupname}"].attributes["{variablename}")
-```
-
-#### Caching commands
-```python
-# List partition files locally
-netcdf2d.cache.getNCs()
-
-# Clear/Delete all partition files locally
-# Warning!
-netcdf2d.cache.clearNCs()
-
-# Delete NetCDF locally
-# Warning!
-# Delete master file and partitions files
-netcdf2d.cache.delete()
-```
-
-
-#### S3 commands
-```python
-# List master and partition files, including metedata
-netcdf2d.s3.list()
-
-# Clear/Delete all partition files in S3
-# Warning!
-netcdf2d.s3.clearNCs()
-
-# Delete NetCDF in S3
-# Warning!
-# Delete master file and partitions files
-netcdf2d.s3.delete()
-
-```
-
-## Testing
-```bash
-conda install pytest
-mkdir ../s3
-pytest
-```
-
-For developers and debugging:
-```bash
-mkdir ../s3
-
-PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d_func.py
-PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d1.py
-PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d2.py
-```
 ## AWS S3 Credentials
-Credentials (for example), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION needs to be save in environment variables. For more information, check [link](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html).
-
+Credentials (for example), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION needs to be save in environment variables. 
+For more information, check [link](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html).
 The credentials needs access to `get`, `put` and `delete` (if deleting is required) to the bucket.
 
-## Performance and Benchmark
+### Testing and other commands
+[Docs](test/README.md)
+
+### License
+[License](LICENSE)
 
 
-
-## TODO
-- Revise code on the value parsing side: compare shape, value type etc, Should be in different function and not in dataWrapper.
-- Check operation when index assigning: + - * /
-
-
-- Fix bench folder and create better performance tests
-- Find optimize shape to upload
-- travis-ci and encryption keys
-- Complete documentation in code
 
 
 

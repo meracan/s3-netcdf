@@ -1,4 +1,5 @@
 import os
+import sys
 from netCDF4 import Dataset
 import numpy as np
 import time
@@ -34,9 +35,11 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
     for key in metadata:
       setattr(src_file, key, metadata[key])
     
+    
+    
     for name in dimensions:
       src_file.createDimension(name, dimensions[name])
-    
+      
     createVariables(src_file,variables)
 
     for name in groups:
@@ -50,6 +53,9 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
 
       shapeArray=[]
       for dimension in group['dimensions']:
+        if (dimension==name):
+          raise Exception("group can't have the same name of a dimension")
+          
         if not dimension in src_file.dimensions:raise Exception("Dimension does not exist")
         shapeArray.append(len(src_file.dimensions[dimension]))
       shapeArray = np.array(shapeArray,dtype="i4")
@@ -65,6 +71,7 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
       shape[:]=shapeArray
       master[:],child[:] = getMasterShape(shapeArray, return_childshape=True, ncSize=ncSize)
       src_group.groupDimensions = group['dimensions']
+      
       createVariables(src_group,group['variables'],group['dimensions'])
       
 
@@ -312,10 +319,10 @@ def parseDescriptor(idx,shape,i=0,canTuple=True):
     start = 0 if idx.start is None else idx.start
     stop = shape[i] if idx.stop is None else idx.stop
     step = 1 if idx.step is None else idx.step
-    if (start < 0 or stop > shape[i]): raise ValueError("Exceeds limit")
+    if (start < 0 or stop > shape[i]): raise ValueError("Exceeds limit,start={},stop={},shape[i]={}".format(start,stop,shape[i]))
     return np.arange(start, stop,step, dtype="i4")
   elif isinstance(idx, int):
-    if (idx < 0 or idx >= shape[i]): raise ValueError("Exceeds limit")
+    if (idx < 0 or idx >= shape[i]): raise ValueError("Exceeds limit,idx={},shape[i]={}".format(idx,shape[i]))
     return np.array([idx],dtype="i4")
   elif isinstance(idx, list) or isinstance(idx, np.ndarray):
     return np.array(idx)
@@ -363,9 +370,9 @@ def getIndices(idx,shape):
   for i in range(len(array), len(shape)):
     # Note: This loop fills the remainder of the array if not provided
     array.append(np.arange(0, shape[i], dtype="i4"))
-  return np.array(array) 
+  return np.array(array)
 
-def getMasterIndices(indices,shape,masterShape):
+def getMasterIndices(indices,shape,masterShape,expand=True):
   """
   Converts data indices to master indices
   
@@ -383,10 +390,11 @@ def getMasterIndices(indices,shape,masterShape):
   """ 
   
   if isinstance(indices[0],np.ndarray): # Check if 1D or multidimentional
-    meshgrid = np.meshgrid(*indices,indexing="ij")
-    indices = np.ravel_multi_index(meshgrid, shape)
+    if(expand):
+      indices = np.meshgrid(*indices,indexing="ij")
+    
+    indices = np.ravel_multi_index(indices, shape)
     indices = indices.flatten()
-  
   return np.array(np.unravel_index(indices, masterShape)).T
 
 def getPartitions(indices,shape,masterShape):
@@ -400,7 +408,7 @@ def getPartitions(indices,shape,masterShape):
     Original data shape
   masterShape: ndarray (1D)
     Master shape
-  
+  raise 
   Returns
   -------
   out : ndarray, partitions
@@ -413,6 +421,7 @@ def getPartitions(indices,shape,masterShape):
   """    
   limits=[]
   n = len(shape)
+  
   for i,step in enumerate(masterShape[n:]):
     _min =np.min(indices[i])
     _max = np.max(indices[i])
@@ -421,9 +430,11 @@ def getPartitions(indices,shape,masterShape):
     if(np.all(l!=_max)):
       l=np.append(l,_max)
     limits.append(l)
-    
+  
+  
   meshgrid = np.meshgrid(*limits,indexing="ij")
   limits = np.array(meshgrid).T
+  
   limits = np.concatenate(limits)
   masterLimits = getMasterIndices(limits.T,shape,masterShape)
   allPartitions=masterLimits[:, :n]
@@ -450,9 +461,9 @@ def checkValue(value,idx,shape):
   if(value is not None):
     if isinstance(value,list):
       value=np.array(value)
-      value = value.flatten()
-    if isinstance(value,np.ndarray):
-      value = value.flatten()
+    #   value = value.flatten()
+    # if isinstance(value,np.ndarray):
+    #   value = value.flatten()
     if isinstance(value,(int,float)):
       temp = np.zeros(np.prod(dataShape))+value
       value=temp
@@ -461,6 +472,7 @@ def checkValue(value,idx,shape):
     if(np.prod(dataShape)!=np.prod(value.shape)):
       # TODO, try repeat row...
       raise Exception("Check input. Shape does not match {} and {}".format(dataShape,value.shape))
+  # print(value)
   return value
 
 def getDataShape(indices):
@@ -482,42 +494,6 @@ def getDataShape(indices):
   return dataShape
 
   
-# from memory_profiler import profile
-# @profile
-def dataWrapper(idx, shape,masterShape,f):
-  """
-  Data wrapper
-  Gets proper partitions, indices in the master array from the data array (idx)
-  The callback function loops on every partition file.
-  
-  Parameters
-  ----------
-  idx:  ndarray
-  shape: ndarray (1D),dataShape
-    Original data shape
-  masterShape: ndarray (1D)
-    Master shape
-  f: callback function (part,idata,iparts)
-  Returns
-  -------
-  out : ndarray
-  
-  """    
-  
-  n = len(shape)
-  indices = getIndices(idx,shape)
-  partitions = getPartitions(indices, shape,masterShape)
-  masterIndices = getMasterIndices(indices,shape,masterShape)
-  
-  dataShape = getDataShape(indices)
-  data = np.empty(dataShape)
-  
-  for part in partitions:
-    idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
-    idata = np.where(idata)[0]
-    ipart = masterIndices[idata][:,n:]
-    data=f(part,idata,ipart,data)
-  return data
 
 def getItemNetCDF(*args,**kwargs):
   return _getset_ItemNetCDF(*args,**kwargs,get=True)
@@ -574,3 +550,13 @@ def _getset_ItemNetCDF(var,d,ipart,idata,get=True):
     var[:]=all
     
   return d
+  
+  
+def getSubIndex(part,shape,masterIndices):
+  """
+  """
+  n=len(shape)
+  idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
+  idata = np.where(idata)[0]
+  ipart = masterIndices[idata][:,n:]
+  return idata,ipart

@@ -8,7 +8,7 @@ Input = dict(
   cacheLocation=r"../s3",
   localOnly=True,
   
-  bucket="merac-dev",
+  bucket="uvic-bcwave",
   cacheSize=10.0,
   ncSize=1.0,
   
@@ -28,7 +28,7 @@ Input = dict(
         elem=dict(type="i4", units="" ,standard_name="" ,long_name=""),
       )),
       time=dict(dimensions=["ntime"],variables=dict(
-        time=dict(type="f4",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
+        time=dict(type="f8",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
         )),
       nodes=dict(dimensions=["nnode"],variables=dict(
         bed=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
@@ -57,13 +57,16 @@ def test_NetCDF2D_2():
   """
   netcdf2d=NetCDF2D(Input)
   elemshape = netcdf2d.groups["elem"].shape
+  
   elemvalue = np.arange(np.prod(elemshape)).reshape(elemshape)
+  
   netcdf2d["elem","elem"] = elemvalue
   np.testing.assert_array_equal(netcdf2d["elem","elem"], elemvalue)
   
   timeshape = netcdf2d.groups["time"].shape
-  timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
-  netcdf2d["time","time"] = timevalue
+  # timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
+  timevalue = np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')
+  netcdf2d["time","time"] = timevalue.astype("datetime64[s]")
   np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
   
   bedshape = netcdf2d.groups["nodes"].shape

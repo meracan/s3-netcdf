@@ -15,8 +15,8 @@ def test_NetCDF2D_3():
   assert info['metadata']['title']==Input['nca']['metadata']['title']
   
   timeshape = netcdf2d.groups["time"].shape
-  timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
-  netcdf2d["time","time"] = timevalue
+  timevalue=np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')
+  netcdf2d["time","time"] = timevalue.astype("datetime64[s]")
   np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
   
   json_file =  open(os.path.join(os.path.dirname(__file__),'test3b.json'))

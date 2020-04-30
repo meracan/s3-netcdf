@@ -2,7 +2,7 @@
   "name":"input3",
   "cacheLocation":"../s3",
   "localOnly":true,
-  "bucket":"merac-dev",
+  "bucket":"uvic-bcwave",
   "cacheSize":10.0,
   "ncSize":1.0
 }

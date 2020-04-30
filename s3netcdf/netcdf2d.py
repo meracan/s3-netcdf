@@ -57,13 +57,14 @@ class NetCDF2D(object):
     "st" = Spectral Temporal oriented
   """  
   def __init__(self, obj):
-    self.name = name = obj["name"] if "name" in obj else None
-    self.localOnly = localOnly = obj["localOnly"] if "localOnly" in obj else True
-    self.bucket = bucket = obj["bucket"] if "bucket" in obj else None
-    cacheLocation = obj["cacheLocation"] if "cacheLocation" in obj and obj["cacheLocation"] is not None else os.getcwd()
+    self.name = name = obj.get("name",None)
+    self.localOnly = localOnly = obj.get("localOnly",True)
+    self.bucket = bucket = obj.get("bucket",None)
+    self.s3prefix=obj.get("prefix",None)
+    cacheLocation = obj.get("cacheLocation",os.getcwd)
     
-    cacheSize = obj["cacheSize"] if "cacheSize" in obj else 10
-    self.ncSize = obj["ncSize"] if "ncSize" in obj else 1
+    cacheSize = obj.get("cacheSize",10)
+    self.ncSize = obj.get("ncSize",1)
     
     if name is None :raise Exception("NetCDF2D needs a name")
     if not localOnly and bucket is None:raise Exception("Need a s3 bucket")
@@ -91,6 +92,7 @@ class NetCDF2D(object):
     
   def create(self,obj):
       if not "nca" in obj: raise Exception("NetCDF2D needs a nca object")
+      
       createNetCDF(self.ncaPath,folder=self.folder,ncSize=self.ncSize,**obj["nca"])  
   
   def open(self):

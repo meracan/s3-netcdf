@@ -8,7 +8,7 @@ Input = dict(
   name="input1",
   cacheLocation=r"../s3",
   localOnly=True,
-  bucket="merac-dev",
+  bucket="uvic-bcwave",
   cacheSize=0.1, # 100kb
   ncSize=1.0, #
   nca = dict(
@@ -67,7 +67,9 @@ def test_NetCDF2D_1():
 
   # 2. Write to partition files
   timeshape = netcdf2d.groups["time"].shape
-  timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
+  # timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
+  timevalue=(np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')).astype("datetime64[s]")
+  
   netcdf2d["time","time"] = timevalue
   np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
   

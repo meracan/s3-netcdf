@@ -1,8 +1,11 @@
 import os
 import numpy as np
+from datetime import datetime
 from netCDF4 import Dataset
 from netCDF4 import num2date, date2num
-from .netcdf2d_func import createNetCDF,dataWrapper,getItemNetCDF,setItemNetCDF,getDataShape,checkValue,getIndices
+from .netcdf2d_func import createNetCDF,\
+  getItemNetCDF,setItemNetCDF,getDataShape,checkValue,getIndices,getPartitions,getMasterIndices,\
+  getChildShape,getMasterShape,getSubIndex
 import time
 np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
@@ -103,42 +106,66 @@ class NetCDF2DGroup(object):
 
   def __getitem__(self, idx):
     """
-    Getting values: dataWrapper gets all partitions and indices, and 
-    uses the callback function f() to extract data.
+    
     """
     
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]
     
-    def f(part,idata,ipart,data):
-      strpart = "_".join(part.astype(str))
-      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
+    shape=self.shape
+    masterShape=self.master
+    
+    
+
+    def f(data,indices):
       
-      if not os.path.exists(filepath):
-        if self.parent.localOnly:raise Exception("File does not exist. No data was assigned")
-        if not self.parent.s3.exists(filepath):raise Exception("File does not exist. No data was assigned")
-        self.parent.s3.download(filepath)
+      partitions = getPartitions(indices, shape,masterShape)
+      masterIndices = getMasterIndices(indices,shape,masterShape)
+      
+      for part in partitions:
+        idata,ipart=getSubIndex(part,shape,masterIndices)
         
-      d=data.flatten()
-      with Dataset(filepath, "r") as src_file:
-        var = src_file.variables[vname]
-        d=getItemNetCDF(var,d,ipart,idata)
-      data=d.reshape(data.shape)
-      return np.squeeze(data)
+        strpart = "_".join(part.astype(str))
+        filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
+        
+        if not os.path.exists(filepath):
+          if self.parent.localOnly:raise Exception("File does not exist. No data was assigned. {}".format(filepath))
+          if not self.parent.s3.exists(filepath):raise Exception("File does not exist. No data was assigned. {}".format(filepath))
+          self.parent.s3.download(filepath)
           
-        
-    data=dataWrapper(idx,self.shape,self.master,f)
+        d=data.flatten()
+        with Dataset(filepath, "r") as src_file:
+          var = src_file.variables[vname]
+          d=getItemNetCDF(var,d,ipart,idata)
+        data=d.reshape(data.shape)
+        data=np.squeeze(data)
+      
+      return data
+    
+    
+    indices = getIndices(idx,shape)
+    dataShape = getDataShape(indices)
+    data = np.empty(dataShape)
+    
+    if np.prod(dataShape)>1E7:
+      for i in range(len(indices[0])):
+        # print(i)
+        _indices=(np.array(i),indices[1])
+        data[i]=f(data[i],_indices)      
+      
+    else:
+      data=f(data,indices)
     
     if "calendar" in attributes:
-      data=num2date(data,units=attributes["units"],calendar=attributes["calendar"])
+      data=data.astype("datetime64[s]")
+      # data=num2date(data,units=attributes["units"],calendar=attributes["calendar"])
     
     return data
     
     
   def __setitem__(self, idx,value):
     """
-    Setting values: dataWrapper gets all partitions and indices, and 
-    uses the callback function f() to write data.
+    
     """
     localOnly = self.parent.localOnly
     s3 = self.parent.s3
@@ -147,28 +174,50 @@ class NetCDF2DGroup(object):
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]
     
-    if "calendar" in attributes:
+    if "calendar" in attributes and isinstance(value[0],datetime):
       value=date2num(value,units=attributes["units"],calendar=attributes["calendar"])
+  
+    shape=self.shape
+    masterShape=self.master
     
     value= checkValue(value,idx,self.shape)
+
+    indices = getIndices(idx,shape)
+
+    def f(_value,_indices):
+      partitions = getPartitions(_indices, shape,masterShape)
+      masterIndices = getMasterIndices(_indices,shape,masterShape)
+
+      for part in partitions:
+       
+        idata,ipart=getSubIndex(part,shape,masterIndices)
+        strpart = "_".join(part.astype(str))
+        filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
+ 
+        if not os.path.exists(filepath):
+          if localOnly:createNetCDF(filepath,**self.variablesSetup[vname])  
+          else:
+            if s3.exists(filepath):s3.download(filepath)
+            else:createNetCDF(filepath,**self.variablesSetup[vname])  
+        
+        with Dataset(filepath, "r+") as src_file:
+          var = src_file.variables[vname]
+          setItemNetCDF(var,_value,ipart,idata)
+        if not localOnly:
+          s3.upload(filepath)
+
     
+    if np.prod(value.shape)>1E7:
+      for i in range(len(indices[0])):
+        # print(i)
+        _value=value[i].flatten()
+        _indices=(np.array(i),indices[1])
+        f(_value,_indices)
+    else:
+      
+      f(value.flatten(),indices)
+     
+
+      
+      
     
-    def f(part,idata,ipart,data):
-      strpart = "_".join(part.astype(str))
-      filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
-      
-      if not os.path.exists(filepath):
-        if localOnly:createNetCDF(filepath,**self.variablesSetup[vname])  
-        else:
-          if s3.exists(filepath):s3.download(filepath)
-          else:createNetCDF(filepath,**self.variablesSetup[vname])  
-      
-    
-      with Dataset(filepath, "r+") as src_file:
-        var = src_file.variables[vname]
-        setItemNetCDF(var,value,ipart,idata)
-      if not localOnly:
-        s3.upload(filepath)
-      
-      
-    dataWrapper(idx,self.shape,self.master,f)
