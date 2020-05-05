@@ -1,4 +1,5 @@
 import os
+from tqdm import tqdm
 from netCDF4 import Dataset
 from netCDF4 import num2date, date2num
 import numpy as np
@@ -72,6 +73,9 @@ class NetCDF2D(object):
     self.cacheLocation = cacheLocation
     self.folder = folder = os.path.join(cacheLocation, name)
     if not os.path.exists(folder): os.makedirs(folder)
+    
+    showProgress=obj.get("showProgress",False)
+    self.pbar = tqdm(total=1) if showProgress else None 
     
     self.groups = {}
     self.s3 = s3 = S3Client(self)

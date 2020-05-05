@@ -9,6 +9,8 @@ from .netcdf2d_func import createNetCDF,\
 import time
 np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
+
+
 class NetCDF2DGroup(object):
   """
   A NetCDF class that handles partition files
@@ -169,7 +171,7 @@ class NetCDF2DGroup(object):
     """
     localOnly = self.parent.localOnly
     s3 = self.parent.s3
-    
+    pbar=self.parent.pbar
     
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]
@@ -208,11 +210,13 @@ class NetCDF2DGroup(object):
 
     
     if np.prod(value.shape)>1E7:
-      for i in range(len(indices[0])):
-        # print(i)
+      nn=len(indices[0])
+      if pbar: pbar.reset(total=nn)
+      for i in range(nn):
         _value=value[i].flatten()
         _indices=(np.array(i),indices[1])
         f(_value,_indices)
+        if pbar: pbar.update(1)
     else:
       
       f(value.flatten(),indices)
