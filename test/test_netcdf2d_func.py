@@ -4,7 +4,7 @@ import numpy as np
 from netCDF4 import Dataset
 from s3netcdf.netcdf2d_func import createNetCDF,NetCDFSummary,\
   createVariables,getChildShape,getMasterShape,parseDescriptor,\
-  getIndices,getMasterIndices,getPartitions
+  getIndices,getMasterIndices,getPartitions,parseIndex
 
 shape1 = [3, 7]
 shape2a = [8, 32768]  # 1MB
@@ -171,6 +171,19 @@ def test_createNetCDF():
   
   np.testing.assert_array_equal(nc['groups']["s"]['variables'],dummyvariables)
   
+def test_parseIndex():
+  assert parseIndex("0")==0
+  assert parseIndex(0)==0
+  assert parseIndex(":")==slice(None,None,None)
+  assert parseIndex("1:")==slice(1,None,None)
+  assert parseIndex(":10")==slice(None,10,None)
+  assert parseIndex("0:10")==slice(0,10,None)
+  assert parseIndex("1:10")==slice(1,10,None)
+  assert parseIndex("[1,2]")==[1,2]
+  
+  with pytest.raises(Exception) as excinfo1:parseIndex("a")
+  assert str(excinfo1.value) == 'Format needs to be \"{int}\" or \":\" or \"{int}:{int}\" or \"[{int},{int}]\"'
+  
   
 
 if __name__ == "__main__":
@@ -181,3 +194,4 @@ if __name__ == "__main__":
   test_getMasterIndices()
   test_getPartitions()
   test_createNetCDF()
+  test_parseIndex()

@@ -104,7 +104,13 @@ class NetCDF2DGroup(object):
     idx   = tuple(idx)
     if not vname in self.variablesSetup:raise Exception("Variable does not exist")
     return vname,idx
-    
+  
+  def getPartitions(self,idx):
+    shape=self.shape
+    masterShape=self.master
+    indices = getIndices(idx,shape)
+    partitions = getPartitions(indices, shape,masterShape)
+    return partitions
 
   def __getitem__(self, idx):
     """

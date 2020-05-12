@@ -144,7 +144,45 @@ def test_NetCDF2D_2():
   netcdf2d["ss","e",0,0,0] = np.arange(36)
   np.testing.assert_array_equal(netcdf2d["ss","e",0,0,0], np.arange(36))
   
+  
+  
+  
   netcdf2d.cache.delete()
 
+def test_NetCDF2D_2_query():
+  netcdf2d=NetCDF2D(Input)
+  elemshape = netcdf2d.groups["elem"].shape
+  
+  elemvalue = np.arange(np.prod(elemshape)).reshape(elemshape)
+  
+  netcdf2d["elem","elem"] = elemvalue
+  np.testing.assert_array_equal(netcdf2d.query({"group":"elem","variable":"elem"}), elemvalue)
+  
+  sashape = netcdf2d.groups["s"].shape
+  savalue = np.arange(np.prod(sashape)).reshape(sashape)
+  netcdf2d["s","a"] = savalue
+
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a"}), savalue)
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0}), savalue[0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":":"}), savalue[0,:])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":":","node":0}), savalue[:,0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":0}), savalue[0,0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":131073}), savalue[0,131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":262144}), savalue[0,262144])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":1,"node":100}), savalue[1,100])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":1,"node":131073}), savalue[1,131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":1,"node":262144}), savalue[1,262144])
+  
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"0:2","node":0}), savalue[0:2,0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"0:2","node":131073}), savalue[0:2,131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"0:2","node":262144}), savalue[0:2,262144])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":100}), savalue[[0,1],100])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":131073}), savalue[[0,1],131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":262144}), savalue[[0,1],262144])
+  
+  netcdf2d.cache.delete()
+  
+
 if __name__ == "__main__":
-  test_NetCDF2D_2()
+  # test_NetCDF2D_2()
+  test_NetCDF2D_2_query()

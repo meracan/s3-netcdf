@@ -560,3 +560,28 @@ def getSubIndex(part,shape,masterIndices):
   idata = np.where(idata)[0]
   ipart = masterIndices[idata][:,n:]
   return idata,ipart
+
+
+def parseIndex(index):
+  try:
+    if index is None:
+      value=slice(None,None,None)  
+    else:
+      index=str(index)
+      
+      if ":" in index:
+        start,end=index.split(":")
+        if start=="":start=None
+        else: start=int(start)
+        if end=="":end=None
+        else: end=int(end)
+        value=slice(start,end,None)
+      elif "[" in  index:
+        index=index.replace("[","").replace("]","")
+        index=index.split(",")
+        value=list(map(lambda x:int(x),index))
+      else:
+        value=int(index)
+    return value
+  except Exception as err:
+    raise Exception("Format needs to be \"{int}\" or \":\" or \"{int}:{int}\" or \"[{int},{int}]\"")

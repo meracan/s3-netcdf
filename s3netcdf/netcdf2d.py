@@ -5,7 +5,7 @@ from netCDF4 import num2date, date2num
 import numpy as np
 from datetime import datetime, timedelta
 
-from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape
+from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape,parseIndex
 from .netcdf2dGroup import NetCDF2DGroup
 from .s3client import S3Client
 from .cache import Cache
@@ -141,3 +141,32 @@ class NetCDF2D(object):
     group,idx=self._item_(idx)
     group[idx]=value
     self.cache.clearOldest()
+    
+  def query(self,obj):
+    """
+      Get data using obj instead of using __getitem__
+      This function will search the obj using keys such ash "group","variable" and name of dimensions (e.g. "x","time")
+    """
+    groups = self.groups
+    
+    groupname=obj["group"]
+    vname=obj["variable"]
+    
+    if not groupname in groups:raise Exception("Group does not exist")
+    group = groups[groupname]
+    
+    if not vname in group.variablesSetup:raise Exception("Variable does not exist")
+    variable=group.variablesSetup[vname]
+    
+    dimensions=variable['dimensions']
+    
+    values=[parseIndex(obj.get(dimension[1:],None)) for dimension in dimensions] # Remove n from the dimension name (e.g. ntime=>time). It will look for time in the obj
+    
+    idx=tuple(values)
+    partitions=group.getPartitions(idx)
+    if len(partitions)>10:raise Exception("Change group or select smaller arraysize")
+    data = group[(vname,*idx)]
+    self.cache.clearOldest()
+    return data
+    
+    
