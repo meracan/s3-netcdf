@@ -107,6 +107,55 @@ Datetime values needs to be in `np.datetime64` as seconds. For example:
 timevalue=(np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')).astype("datetime64[s]")
 ```
 
+#### Using object instead of getitem
+```python
+from s3netcdf import NetCDF2D 
+# Create/Open master file
+netcdf2d=NetCDF2D(input)
+# Get array for all time and node
+obj={
+  "group":"s",
+  "variable":"a",
+}
+print(netcdf2d.query(obj))
+```
+
+The object must have `group`, `variable`, and optionally, the indices. The indices depends on the dimension of the group. For example:
+```python
+# Extract time=0 for all nodes
+obj={
+  "group":"s",
+  "variable":"a",
+  "time":0,
+}
+
+# Extract variable a time=0 for node 0 to 9
+obj={
+  "group":"s",
+  "variable":"a",
+  "time":0,
+  "node":"0:10" # index 10 is not included in the array
+}
+
+# Extract variable at time=0 for node 0 and 9
+obj={
+  "group":"s",
+  "variable":"a",
+  "time":0,
+  "node":"[0,9]"
+}
+
+# Extract bed info from node 0 to 9
+obj={
+  "group":"nodes",
+  "variable":"bed",
+  "node":0:10,
+  
+}
+
+```
+
+
 ##### S3, caching and localOnly
 Partition files are saved locally (caching) while reading and writing. By default, the `cacheLocation={path}` is the current working directory. 
 

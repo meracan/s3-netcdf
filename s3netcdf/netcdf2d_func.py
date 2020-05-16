@@ -148,14 +148,24 @@ def NetCDFSummary(filePath):
     
     variables =readVariables(src_file)
     
+    vars={}
     groups={}
     for id in list(src_file.groups):
       group = {}
       group['variables']=readVariables(src_file.groups[id])
       group['dimensions']=src_file.groups[id].groupDimensions
       groups[id]=group
+      
+      # Save variables in vars
+      for key in group['variables'].keys():
+        if key in vars:
+          if isinstance(vars[key],list):vars[key].append(id)
+          else:vars[key]=[vars[key],id] 
+        else:
+          vars[key]=id
+      
     
-    return dict(metadata=metadata,dimensions=dimensions,variables=variables,groups=groups)
+    return dict(metadata=metadata,dimensions=dimensions,variables=variables,groups=groups,vars=vars)
 
 
 def readVariables(src):

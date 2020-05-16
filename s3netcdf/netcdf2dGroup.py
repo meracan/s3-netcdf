@@ -177,7 +177,15 @@ class NetCDF2DGroup(object):
     """
     localOnly = self.parent.localOnly
     s3 = self.parent.s3
-    pbar=self.parent.pbar
+    
+    if self.parent.showProgress:
+      try:
+        from tqdm import tqdm
+        pbar = tqdm(total=1)
+      except Exception as err:
+        pbar=None
+    else:
+      pbar = None
     
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]

@@ -1,5 +1,5 @@
 import os
-from tqdm import tqdm
+
 from netCDF4 import Dataset
 from netCDF4 import num2date, date2num
 import numpy as np
@@ -64,8 +64,8 @@ class NetCDF2D(object):
     self.s3prefix=obj.get("prefix",None)
     cacheLocation = obj.get("cacheLocation",os.getcwd)
     
-    cacheSize = obj.get("cacheSize",10)
-    self.ncSize = obj.get("ncSize",1)
+    self.maxPartitions= obj.pop("maxPartitions",10)
+    self.ncSize = obj.pop("ncSize",10)
     
     if name is None :raise Exception("NetCDF2D needs a name")
     if not localOnly and bucket is None:raise Exception("Need a s3 bucket")
@@ -74,14 +74,17 @@ class NetCDF2D(object):
     self.folder = folder = os.path.join(cacheLocation, name)
     if not os.path.exists(folder): os.makedirs(folder)
     
-    showProgress=obj.get("showProgress",False)
-    self.pbar = tqdm(total=1) if showProgress else None 
+    self.showProgress=obj.get("showProgress",False)
+    
     
     self.groups = {}
-    self.s3 = s3 = S3Client(self)
-    self.cache  = Cache(self)
-    self.cacheSize = cacheSize * 1024**2
     
+    credentials=obj.pop("credentials",{})
+    self.s3 = s3 = S3Client(self,credentials)
+    self.cache  = Cache(self)
+    cacheSize = obj.pop("cacheSize",10)
+    self.cacheSize = cacheSize * 1024**2
+  
     self.ncaPath = ncaPath = os.path.join(folder,"{}.nca".format(name))
     
     if not os.path.exists(ncaPath):
@@ -108,6 +111,9 @@ class NetCDF2D(object):
     self.nca.close()
 
   def info(self):
+    return NetCDFSummary(self.ncaPath)
+    
+  def meta(self):
     return NetCDFSummary(self.ncaPath)
   
   def setlocalOnly(self,value):
@@ -142,20 +148,10 @@ class NetCDF2D(object):
     group[idx]=value
     self.cache.clearOldest()
     
-  def query(self,obj):
-    """
-      Get data using obj instead of using __getitem__
-      This function will search the obj using keys such ash "group","variable" and name of dimensions (e.g. "x","time")
-    """
-    groups = self.groups
+  def _getPartition(self,gname,vname,obj,partitions_only=True):
     
-    groupname=obj["group"]
-    vname=obj["variable"]
-    
-    if not groupname in groups:raise Exception("Group does not exist")
-    group = groups[groupname]
-    
-    if not vname in group.variablesSetup:raise Exception("Variable does not exist")
+    group = self.groups[gname]
+    if not vname in group.variablesSetup:raise Exception("Variable does not exist in group {}".format(gname))
     variable=group.variablesSetup[vname]
     
     dimensions=variable['dimensions']
@@ -164,7 +160,31 @@ class NetCDF2D(object):
     
     idx=tuple(values)
     partitions=group.getPartitions(idx)
-    if len(partitions)>10:raise Exception("Change group or select smaller arraysize")
+   
+    if partitions_only: return partitions
+    return partitions,group,idx
+  
+  def query(self,obj):
+    """
+      Get data using obj instead of using __getitem__
+      This function will search the obj using keys such ash "group","variable" and name of dimensions (e.g. "x","time")
+      If "group" does not exist, it will find the "group" based on the name of the variable and with the least amount of partition (e.g "s","t")
+    """
+    vname=obj['variable']
+    gname=obj.get('group',None)
+    
+    if gname is None:
+      meta=self.meta()
+      if not vname in meta['vars']:raise Exception("Variable does not exist")
+      gname=meta['vars'][vname]
+    
+      # If  multiple group, get group with minimum partitions
+      if isinstance(gname,list):
+        gname=min(gname, key=lambda x: len(self._getPartition(x,vname,obj)))
+    
+    partitions,group,idx=self._getPartition(gname,vname,obj,False)
+    if len(partitions)>self.maxPartitions:raise Exception("Change group or select smaller arraysize")
+    
     data = group[(vname,*idx)]
     self.cache.clearOldest()
     return data

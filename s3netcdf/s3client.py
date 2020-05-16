@@ -1,15 +1,16 @@
 import os
 import boto3
 from botocore.errorfactory import ClientError
-s3 = boto3.client('s3')
 
-    
+
 class S3Client(object):
   """
   Interface to communicate with S3
   
   """
-  def __init__(self, parent):
+  def __init__(self, parent,credentials={}):
+    
+    self.s3 = boto3.client('s3',**credentials)
     self.s3prefix=parent.s3prefix
     self.parent = parent
     self.bucket = parent.bucket
@@ -25,7 +26,7 @@ class S3Client(object):
     if self.s3prefix:
       Prefix= self.s3prefix + "/" + Prefix
     
-    page_iterator = s3.get_paginator('list_objects_v2').paginate(Bucket=self.bucket, Prefix=Prefix)
+    page_iterator = self.s3.get_paginator('list_objects_v2').paginate(Bucket=self.bucket, Prefix=Prefix)
     files=[]
     for page in page_iterator:
       if "Contents" in page:
@@ -39,7 +40,7 @@ class S3Client(object):
     if len(files)==0:return True
     
     ncs = [{"Key":file["Key"]} for file in files if os.path.splitext(file['Key'])[1]==".nc"]
-    s3.delete_objects(Bucket=self.bucket, Delete={"Objects":ncs})
+    self.s3.delete_objects(Bucket=self.bucket, Delete={"Objects":ncs})
     return True
   
     
@@ -48,13 +49,13 @@ class S3Client(object):
     if len(files)==0:return True
     
     keys = [{"Key":file["Key"]} for file in files]
-    s3.delete_objects(Bucket=self.bucket, Delete={"Objects":keys})
+    self.s3.delete_objects(Bucket=self.bucket, Delete={"Objects":keys})
     return True
 
   def exists(self,filepath):
     s3path = self._gets3path(filepath)
     try:
-      s3.head_object(Bucket=self.bucket, Key=s3path)
+      self.s3.head_object(Bucket=self.bucket, Key=s3path)
       return True
     except ClientError as e:
       return False
@@ -67,12 +68,12 @@ class S3Client(object):
     folder = os.path.dirname(filepath)
     if not os.path.exists(folder): os.makedirs(folder)
     
-    return s3.download_file(bucket, s3path, filepath)
+    return self.s3.download_file(bucket, s3path, filepath)
     
   def upload(self,filepath):
     bucket = self.bucket
     s3path = self._gets3path(filepath)
   
-    return s3.upload_file(filepath, bucket, s3path)
+    return self.s3.upload_file(filepath, bucket, s3path)
     
     
