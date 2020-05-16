@@ -74,9 +74,9 @@ class NetCDF2D(object):
     self.folder = folder = os.path.join(cacheLocation, name)
     if not os.path.exists(folder): os.makedirs(folder)
     
-    self.showProgress=obj.get("showProgress",False)
-    
-    
+    self.showProgress=showProgress=obj.get("showProgress",False)
+    self.pbar=None
+      
     self.groups = {}
     
     credentials=obj.pop("credentials",{})

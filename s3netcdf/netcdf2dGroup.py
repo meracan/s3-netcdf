@@ -178,14 +178,6 @@ class NetCDF2DGroup(object):
     localOnly = self.parent.localOnly
     s3 = self.parent.s3
     
-    if self.parent.showProgress:
-      try:
-        from tqdm import tqdm
-        pbar = tqdm(total=1)
-      except Exception as err:
-        pbar=None
-    else:
-      pbar = None
     
     vname,idx = self.__checkVariable(idx)
     attributes = self.attributes[vname]
@@ -225,6 +217,17 @@ class NetCDF2DGroup(object):
     
     if np.prod(value.shape)>1E7:
       nn=len(indices[0])
+      pbar=self.parent.pbar
+      
+      if self.parent.showProgress:
+        if pbar is None:
+          try:
+            from tqdm import tqdm
+            pbar =self.parent.pbar= tqdm(total=1)
+          except Exception as err:
+            import warnings
+            warnings.warn("tqdm does not exist")
+      
       if pbar: pbar.reset(total=nn)
       for i in range(nn):
         _value=value[i].flatten()
@@ -232,10 +235,4 @@ class NetCDF2DGroup(object):
         f(_value,_indices)
         if pbar: pbar.update(1)
     else:
-      
       f(value.flatten(),indices)
-     
-
-      
-      
-    
