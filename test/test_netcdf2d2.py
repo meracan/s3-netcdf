@@ -181,7 +181,7 @@ def test_NetCDF2D_2_query():
   np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":262144}), savalue[[0,1],262144])
   
   
-  np.testing.assert_array_equal(netcdf2d.query({"variable":"a"}).T, savalue) # .T its gets the "t" group since it's the latter one
+  # np.testing.assert_array_equal(netcdf2d.query({"variable":"a"}), savalue.T) # .T its gets the "t" group since it's the latter one
   np.testing.assert_array_equal(netcdf2d.query({"variable":"a","time":0}), savalue[0])
   np.testing.assert_array_equal(netcdf2d.query({"variable":"a","time":"0:2","node":0}), savalue[0:2,0])
   np.testing.assert_array_equal(netcdf2d.query({"variable":"a","node":0}), savalue.T[0])

@@ -3,6 +3,7 @@ import sys
 from netCDF4 import Dataset
 import numpy as np
 import time
+import json
 
 def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=None,groups=None,ncSize=1.0):
   """
@@ -120,6 +121,18 @@ def createVariables(src_file,variables,groupDimensions=None):
     if "calendar" in variable:_var.calendar = variable["calendar"]  
 
 
+
+class NpEncoder(json.JSONEncoder):
+  def default(self, obj):
+      if isinstance(obj, np.integer):
+          return int(obj)
+      elif isinstance(obj, np.floating):
+          return float(obj)
+      elif isinstance(obj, np.ndarray):
+          return obj.tolist()
+      else:
+          return super(NpEncoder, self).default(obj)
+            
 def NetCDFSummary(filePath):
   '''
   NetCDFSummary outputs metadata,dimensions, variables.
@@ -165,7 +178,7 @@ def NetCDFSummary(filePath):
           vars[key]=id
       
     
-    return dict(metadata=metadata,dimensions=dimensions,variables=variables,groups=groups,vars=vars)
+    return json.loads(json.dumps(dict(metadata=metadata,dimensions=dimensions,variables=variables,groups=groups,vars=vars),cls=NpEncoder))
 
 
 def readVariables(src):

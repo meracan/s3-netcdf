@@ -218,7 +218,12 @@ class NetCDF2DGroup(object):
     if np.prod(value.shape)>1E7:
       nn=len(indices[0])
       pbar=self.parent.pbar
-      
+      # print(np.prod(np.array(self.child))
+      # mem=np.prod(self.child) * 4/np.power(1024,2)
+      # memTotal=50
+      # factor=int(np.ceil(memTotal/mem))
+      factor=3
+      groupN=self.child[0]*factor
       if self.parent.showProgress:
         if pbar is None:
           try:
@@ -228,10 +233,15 @@ class NetCDF2DGroup(object):
             import warnings
             warnings.warn("tqdm does not exist")
       
-      if pbar: pbar.reset(total=nn)
-      for i in range(nn):
-        _value=value[i].flatten()
-        _indices=(np.array(i),indices[1])
+      if pbar: pbar.reset(total=int(np.ceil(nn/groupN)))
+      
+      for i in range(0,nn,groupN):
+        maxValue=np.minimum(i+groupN,nn)
+        _i=np.arange(i,maxValue)
+        
+        # print(i,nn)
+        _value=value[_i].flatten()
+        _indices=(_i,indices[1])
         f(_value,_indices)
         if pbar: pbar.update(1)
     else:
