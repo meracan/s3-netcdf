@@ -53,20 +53,20 @@ def test_NetCDF2D_4():
   value = np.arange(np.prod(elemshape)).reshape(elemshape)
   
   
-  # netcdf2d["s","a",0] = value[0]
-  # np.testing.assert_array_equal(netcdf2d["s","a",0], np.squeeze(value[0]))
+  netcdf2d["s","a",0] = value[0]
+  np.testing.assert_array_equal(netcdf2d["s","a",0], np.squeeze(value[0]))
   
-  # netcdf2d["s","a",50] = value[50]
-  # np.testing.assert_array_equal(netcdf2d["s","a",50], np.squeeze(value[50]))
+  netcdf2d["s","a",50] = value[50]
+  np.testing.assert_array_equal(netcdf2d["s","a",50], np.squeeze(value[50]))
   
-  # netcdf2d["s","a",10:40] = value[10:40]
-  # np.testing.assert_array_equal(netcdf2d["s","a",10:40], np.squeeze(value[10:40]))
+  netcdf2d["s","a",10:40] = value[10:40]
+  np.testing.assert_array_equal(netcdf2d["s","a",10:40], np.squeeze(value[10:40]))
   
-  # netcdf2d["s","a",100:101] = value[100:101]
-  # np.testing.assert_array_equal(netcdf2d["s","a",100:101], np.squeeze(value[100:101]))  
+  netcdf2d["s","a",100:101] = value[100:101]
+  np.testing.assert_array_equal(netcdf2d["s","a",100:101], np.squeeze(value[100:101]))  
 
   netcdf2d["s","a"] = value
-  # np.testing.assert_array_equal(netcdf2d["s","a"], np.squeeze(value))
+  np.testing.assert_array_equal(netcdf2d["s","a"], np.squeeze(value))
   
   netcdf2d.cache.delete()
 

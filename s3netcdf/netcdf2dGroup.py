@@ -239,9 +239,9 @@ class NetCDF2DGroup(object):
         maxValue=np.minimum(i+groupN,nn)
         _i=np.arange(i,maxValue)
         
-        # print(i,nn)
+        # print(indices[0][_i])
         _value=value[_i].flatten()
-        _indices=(_i,indices[1])
+        _indices=(indices[0][_i],indices[1])
         f(_value,_indices)
         if pbar: pbar.update(1)
     else:
