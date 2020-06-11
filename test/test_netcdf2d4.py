@@ -20,6 +20,8 @@ Input = dict(
       nnode=262145,
       ntime=120,
       nspectra=300,
+      nstation=100,
+      nsnode=198,
       nfreq=33,
       ndir=36,
     ),
@@ -37,7 +39,9 @@ Input = dict(
       s=dict(dimensions=["ntime", "nnode"] ,variables=dict(
         a=dict(type="f8",units="m" ,standard_name="" ,long_name=""),
         )),
-      
+      spc=dict(dimensions=["nstation", "nsnode","ntime","nfreq","ndir"] ,variables=dict(
+        energy=dict(type="f8",units="m" ,standard_name="" ,long_name=""),
+        )),
     )
   )
 )
@@ -67,6 +71,14 @@ def test_NetCDF2D_4():
 
   netcdf2d["s","a"] = value
   np.testing.assert_array_equal(netcdf2d["s","a"], np.squeeze(value))
+  
+  value2 = np.arange(30*120*33*36).reshape((1,30,120,33,36))
+  
+  netcdf2d["spc","energy",0,0:30] = value2
+  np.testing.assert_array_equal(netcdf2d["spc","energy",0,0:30], np.squeeze(value2))
+  
+  
+  
   
   netcdf2d.cache.delete()
 

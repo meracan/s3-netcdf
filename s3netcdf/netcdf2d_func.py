@@ -457,9 +457,10 @@ def getPartitions(indices,shape,masterShape):
   
   meshgrid = np.meshgrid(*limits,indexing="ij")
   limits = np.array(meshgrid).T
-  
+ 
   limits = np.concatenate(limits)
   masterLimits = getMasterIndices(limits.T,shape,masterShape)
+  
   allPartitions=masterLimits[:, :n]
   uniquePartitions = np.unique(allPartitions,axis=0)
   return uniquePartitions

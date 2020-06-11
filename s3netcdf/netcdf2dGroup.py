@@ -214,35 +214,23 @@ class NetCDF2DGroup(object):
         if not localOnly:
           s3.upload(filepath)
 
+      
+    ishape=[len(arr) for arr in indices]
+    value=value.flatten().reshape(ishape)
+    tmshape,tcshape=getMasterShape(ishape,return_childshape=True,ncSize=100.0)
     
-    if np.prod(value.shape)>1E7:
-      nn=len(indices[0])
-      pbar=self.parent.pbar
-      # print(np.prod(np.array(self.child))
-      # mem=np.prod(self.child) * 4/np.power(1024,2)
-      # memTotal=50
-      # factor=int(np.ceil(memTotal/mem))
-      factor=3
-      groupN=self.child[0]*factor
-      if self.parent.showProgress:
-        if pbar is None:
-          try:
-            from tqdm import tqdm
-            pbar =self.parent.pbar= tqdm(total=1)
-          except Exception as err:
-            import warnings
-            warnings.warn("tqdm does not exist")
-      
-      if pbar: pbar.reset(total=int(np.ceil(nn/groupN)))
-      
-      for i in range(0,nn,groupN):
-        maxValue=np.minimum(i+groupN,nn)
-        _i=np.arange(i,maxValue)
-        
-        # print(indices[0][_i])
-        _value=value[_i].flatten()
-        _indices=(indices[0][_i],indices[1])
-        f(_value,_indices)
-        if pbar: pbar.update(1)
-    else:
-      f(value.flatten(),indices)
+    matrix=[np.arange(idim) for idim in tmshape[:len(ishape)]]
+    meshgrid = np.meshgrid(*matrix,indexing="ij")
+   
+    tpartitions = np.unique(np.concatenate(np.array(meshgrid).T),axis=0)
+    tpartitions=np.squeeze(tpartitions)
+
+    if tpartitions.ndim==0:tpartitions=tpartitions[np.newaxis,np.newaxis]
+    if tpartitions.ndim==1:tpartitions=tpartitions[np.newaxis]
+    
+    for part in tpartitions:
+      _local=tuple([slice(i*tcshape[idim],np.minimum((i+1)*tcshape[idim],ishape[idim])) for idim,i in enumerate(part)])
+      _indices=tuple([indices[idim][np.arange(i*tcshape[idim],np.minimum(i*tcshape[idim]+tcshape[idim],ishape[idim]))] for idim,i in enumerate(part)])
+      _value=value[_local]
+      f(_value.flatten(),_indices)
+  
