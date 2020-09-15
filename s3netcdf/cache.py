@@ -4,18 +4,14 @@ import glob
 
     
 class Cache(object):
-  """
- 
-  
-  Parameters
-  ----------
- 
-  Attributes
-  ----------
-
-  
+  """ Cache object that manage temporary NetCDF files
   """
   def __init__(self, parent):
+    """
+    Parameters
+    ----------
+    parent: NetCDF2D object
+    """
     self.parent = parent
   
   def getNCs(self):
@@ -42,7 +38,9 @@ class Cache(object):
   def clearOldest(self):
     if self.parent.localOnly:return
     cacheSize = self.parent.cacheSize
+    
     files = self.getNCs()
+    
     _files = [{"path":file,"stat":os.stat(file)} for file in files]
     _files.sort(key=lambda x: x['stat'].st_mtime, reverse=True)
     tsize=0

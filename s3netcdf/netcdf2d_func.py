@@ -31,6 +31,9 @@ def createNetCDF(filePath,folder=None,metadata=None,dimensions=None,variables=No
   if variables is None: variables = {}
   if groups is None: groups = {}
   
+  if not os.path.isdir(os.path.dirname(filePath)):
+    os.makedirs(os.path.dirname(filePath), exist_ok=True)
+    
   with Dataset(filePath, "w") as src_file:
     # Write metadata
     for key in metadata:
@@ -123,15 +126,19 @@ def createVariables(src_file,variables,groupDimensions=None):
 
 
 class NpEncoder(json.JSONEncoder):
+  """ 
+  Encoder to change numpy type to python type.
+  This is used for creating JSON object.
+  """
   def default(self, obj):
-      if isinstance(obj, np.integer):
-          return int(obj)
-      elif isinstance(obj, np.floating):
-          return float(obj)
-      elif isinstance(obj, np.ndarray):
-          return obj.tolist()
-      else:
-          return super(NpEncoder, self).default(obj)
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return super(NpEncoder, self).default(obj)
             
 def NetCDFSummary(filePath):
   '''
@@ -304,7 +311,6 @@ def getMasterShape(shape,return_childshape=False,**kwargs):
 def parseDescriptor(idx,shape,i=0,canTuple=True):
   """
   Parsing descriptor with specific shape
-  \
   
   Parameters
   ----------
@@ -389,11 +395,16 @@ def getIndices(idx,shape):
   """
   
   array = parseDescriptor(idx,shape,0,canTuple=True)
+  
   if not isinstance(array, list):array=[array]
-  for i in range(len(array), len(shape)):
+  
+  # newarray=np.array((len(shape)-len(array)),dtype="object")
+  
+  for _,i in enumerate(range(len(array), len(shape))):
     # Note: This loop fills the remainder of the array if not provided
     array.append(np.arange(0, shape[i], dtype="i4"))
-  return np.array(array)
+  
+  return array
 
 def getMasterIndices(indices,shape,masterShape,expand=True):
   """
@@ -444,7 +455,7 @@ def getPartitions(indices,shape,masterShape):
   """    
   limits=[]
   n = len(shape)
-  
+
   for i,step in enumerate(masterShape[n:]):
     _min =np.min(indices[i])
     _max = np.max(indices[i])
@@ -454,21 +465,19 @@ def getPartitions(indices,shape,masterShape):
       l=np.append(l,_max)
     limits.append(l)
   
-  
   meshgrid = np.meshgrid(*limits,indexing="ij")
   limits = np.array(meshgrid).T
- 
   limits = np.concatenate(limits)
   masterLimits = getMasterIndices(limits.T,shape,masterShape)
-  
   allPartitions=masterLimits[:, :n]
   uniquePartitions = np.unique(allPartitions,axis=0)
+
   return uniquePartitions
 
 
 def checkValue(value,idx,shape):
   """
-  A few checks when setting data
+  Check importing/setting values before saving it to NetCDF
 
   Parameters
   ----------
@@ -479,24 +488,19 @@ def checkValue(value,idx,shape):
   
   Returns
   -------
-  out : value
+  out : value,ndarray
   """ 
   dataShape=getDataShape(getIndices(idx,shape))
   if(value is not None):
     if isinstance(value,list):
       value=np.array(value)
-    #   value = value.flatten()
-    # if isinstance(value,np.ndarray):
-    #   value = value.flatten()
     if isinstance(value,(int,float)):
       temp = np.zeros(np.prod(dataShape))+value
       value=temp
     if isinstance(value,str):
       raise Exception("Check Input. Not tested for string")
     if(np.prod(dataShape)!=np.prod(value.shape)):
-      # TODO, try repeat row...
       raise Exception("Check input. Shape does not match {} and {}".format(dataShape,value.shape))
-  # print(value)
   return value
 
 def getDataShape(indices):
@@ -517,31 +521,18 @@ def getDataShape(indices):
   dataShape=tuple(dataShape)
   return dataShape
 
-  
 
-def getItemNetCDF(*args,**kwargs):
-  return _getset_ItemNetCDF(*args,**kwargs,get=True)
-
-def setItemNetCDF(*args,**kwargs):
-  return _getset_ItemNetCDF(*args,**kwargs,get=False)
-
-
-
-
-def _getset_ItemNetCDF(var,d,ipart,idata,get=True):
+def getItemNetCDF(var,d,ipart,idata):
   """
-  Get or set data from NetCDF4.Dataset using multi-dimensional array indexing
+  Get/Set data from NetCDF4.Dataset using multi-dimensional array indexing
   
   Parameters
   ----------
   var:
-  d: ndarray (1D)
-    
+  d: ndarray
   ipart:
-    
   idata:
   
-  get:
   
   
   Returns
@@ -563,21 +554,28 @@ def _getset_ItemNetCDF(var,d,ipart,idata,get=True):
   Save netcdf array to numpy, use multi-dimensional array indexing on the numpy 
   array,convert back to netcdf if necessary
   """
-  
   tup = (0,*ipart.T)[1:]
-  if(get):
-    all=var[:]
-    d[idata]=np.squeeze(all[tup])
-  else:
-    all=var[:]
-    all[tup]=d[idata]
-    var[:]=all
-    
+  all=var[:]
+  d[idata]=np.squeeze(all[tup])
   return d
-  
+
+def setItemNetCDF(var,d,ipart,idata):
+  """ See above
+  """
+  tup = (0,*ipart.T)[1:]
+  all=var[:]
+  all[tup]=d[idata]
+  var[:]=all
+    
+
   
 def getSubIndex(part,shape,masterIndices):
-  """
+  """ Get partition indices
+  Parameters
+  ----------
+  part:
+  shape: ndarray (1D)
+  masterIndices:
   """
   n=len(shape)
   idata = np.all(masterIndices[:,:n] == part[None,:], axis=1)
@@ -586,13 +584,24 @@ def getSubIndex(part,shape,masterIndices):
   return idata,ipart
 
 
-def parseIndex(index):
+def parseIndex(index=None):
+  """ 
+  
+  Parse index query based on string 
+  
+  Parameters
+  ----------
+  index:str
+  
+  Examples
+  ---------
+  
+  """  
   try:
     if index is None:
       value=slice(None,None,None)  
     else:
       index=str(index)
-      
       if ":" in index:
         start,end=index.split(":")
         if start=="":start=None

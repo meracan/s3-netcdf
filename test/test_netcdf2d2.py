@@ -11,6 +11,7 @@ Input = dict(
   bucket="uvic-bcwave",
   cacheSize=10.0,
   ncSize=1.0,
+  squeeze=True,
   
   nca = dict(
     metadata=dict(title="Input2"),

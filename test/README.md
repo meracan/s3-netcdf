@@ -8,16 +8,19 @@ pytest
 For developers and debugging:
 ```bash
 mkdir ../s3
-
-PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d_func.py
-PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d1.py
-PYTHONPATH=../s3-netcdf/ python3 test/test_netcdf2d2.py
+python3 test/test_netcdf2d_func.py
+python3 test/test_netcdf2d1.py
+python3 test/test_netcdf2d2.py
+python3 test/test_netcdf2d3.py
+python3 test/test_netcdf2d4.py
+python3 test/test_netcdf2d1.py && python3 test/test_netcdf2d2.py && python3 test/test_netcdf2d3.py && python3 test/test_netcdf2d4.py
 ```
 
 #### General Commands
 ```python
 # Get information inside the master file
 netcdf2d.info()
+netcdf2d.meta()
 
 # Get group dimensional shape 
 netcdf2d.groups["{groupname}"].shape
@@ -62,7 +65,6 @@ netcdf2d.s3.delete()
 ```
 
 ## TODO
-- Revise code on the value parsing side: compare shape, value type etc, Should be in different function and not in dataWrapper.
 - Check operation when index assigning: + - * /
 
 - Fix bench folder and create better performance tests

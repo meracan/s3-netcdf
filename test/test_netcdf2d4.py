@@ -7,7 +7,7 @@ Input = dict(
   name="input4",
   cacheLocation=r"../s3",
   localOnly=True,
-  
+  squeeze=True,
   bucket="uvic-bcwave",
   cacheSize=10.0,
   ncSize=10.0,
@@ -18,10 +18,10 @@ Input = dict(
       npe=3,
       nelem=262145,
       nnode=262145,
-      ntime=120,
+      ntime=110,
       nspectra=300,
       nstation=100,
-      nsnode=198,
+      nsnode=20,
       nfreq=33,
       ndir=36,
     ),
@@ -58,24 +58,25 @@ def test_NetCDF2D_4():
   
   
   netcdf2d["s","a",0] = value[0]
-  np.testing.assert_array_equal(netcdf2d["s","a",0], np.squeeze(value[0]))
+  np.testing.assert_array_equal(netcdf2d["s","a",0], value[0])
   
   netcdf2d["s","a",50] = value[50]
-  np.testing.assert_array_equal(netcdf2d["s","a",50], np.squeeze(value[50]))
+  np.testing.assert_array_equal(netcdf2d["s","a",50], value[50])
   
   netcdf2d["s","a",10:40] = value[10:40]
-  np.testing.assert_array_equal(netcdf2d["s","a",10:40], np.squeeze(value[10:40]))
+  np.testing.assert_array_equal(netcdf2d["s","a",10:40], value[10:40])
   
   netcdf2d["s","a",100:101] = value[100:101]
-  np.testing.assert_array_equal(netcdf2d["s","a",100:101], np.squeeze(value[100:101]))  
+  np.testing.assert_array_equal(netcdf2d["s","a",100:101],np.squeeze(value[100:101]))  
 
   netcdf2d["s","a"] = value
-  np.testing.assert_array_equal(netcdf2d["s","a"], np.squeeze(value))
+  np.testing.assert_array_equal(netcdf2d["s","a"], value)
   
-  value2 = np.arange(30*120*33*36).reshape((1,30,120,33,36))
+  value2 = np.arange(20*110*33*36).reshape((1,20,110,33,36))
   
-  netcdf2d["spc","energy",0,0:30] = value2
-  np.testing.assert_array_equal(netcdf2d["spc","energy",0,0:30], np.squeeze(value2))
+  netcdf2d["spc","energy",0,:] = value2
+  np.testing.assert_array_equal(netcdf2d["spc","energy",0,0:20], np.squeeze(value2))
+  np.testing.assert_array_equal(netcdf2d["spc","energy",0], np.squeeze(value2))
   
   
   

@@ -3,14 +3,16 @@ import pytest
 import numpy as np
 from s3netcdf import NetCDF2D
 from datetime import datetime, timedelta
+import time
 
 Input = dict(
   name="input1",
   cacheLocation=r"../s3",
   localOnly=True,
   bucket="uvic-bcwave",
+  # cacheSize=0.1, # 100kb
   cacheSize=0.1, # 100kb
-  ncSize=1.0, #
+  ncSize=1, #
   nca = dict(
     metadata=dict(title="Input1"),
     dimensions = {"nnode":1000000,"ntime":2},
@@ -36,7 +38,7 @@ Input = dict(
   )
 )
 
-def test_NetCDF2D_1():
+def test_NetCDF2D_1(input):
   """
   Basic testing to test all features: create, write & read, caching & s3 commands.
   Logical process:
@@ -61,7 +63,7 @@ def test_NetCDF2D_1():
   ----------
   """
   # 1. Create Master file and check metadata
-  netcdf2d=NetCDF2D(Input)
+  netcdf2d=NetCDF2D(input)
   info = netcdf2d.info()
   assert info['metadata']['title']==Input['nca']['metadata']['title']
 
@@ -84,7 +86,7 @@ def test_NetCDF2D_1():
   np.testing.assert_array_equal(netcdf2d["s","a"], savalue)
   
   netcdf2d["s","a",0,100:200] = 0.0
-  np.testing.assert_array_equal(netcdf2d["s","a",0,100:200], np.zeros(100))
+  np.testing.assert_array_equal(netcdf2d["s","a",0,100:200], np.zeros((1,100)))
   
   # 3. Upload and delete cache files
   netcdf2d.cache.uploadNCA()
@@ -93,24 +95,29 @@ def test_NetCDF2D_1():
   
   netcdf2d.setlocalOnly(False)
   # 4. Download automatically from s3 and check values
-  np.testing.assert_array_equal(netcdf2d["s","a",0,100:200], np.zeros(100))
+  tvalue = np.arange(np.prod(sashape)).reshape(sashape)
+  tvalue[0,100:200]= 0.0
+  np.testing.assert_array_equal(netcdf2d["s","a"], tvalue)
   
   # 5. Delete all
   netcdf2d.cache.delete()
   netcdf2d.s3.delete()
-  
+
+
+def test_NetCDF2D_1b(input):
   # 6. Part2 cache files and upload to s3 automatically
-  Input['localOnly']=False
-  netcdf2d=NetCDF2D(Input)
+  input['localOnly']=False
+  netcdf2d=NetCDF2D(input)
   
   # 7. Write to partition files and upload to s3
   sashape = netcdf2d.groups["s"].shape
+  
   savalue = np.arange(np.prod(sashape)).reshape(sashape)
   netcdf2d["s","a"] = savalue
   np.testing.assert_array_equal(netcdf2d["s","a"], savalue)
   
   # 8. Check auto-delete of cache files (exceeding cacheSize)
-  # Should delete 3 files
+  #Should delete 3 files
   assert len(netcdf2d.cache.getNCs())==5
   
   # 9. Delete all
@@ -119,4 +126,5 @@ def test_NetCDF2D_1():
   
 
 if __name__ == "__main__":
-  test_NetCDF2D_1()
+  test_NetCDF2D_1(Input)
+  test_NetCDF2D_1b(Input)
