@@ -1,8 +1,10 @@
 import pytest
+import sys
 import numpy as np
 from s3netcdf import NetCDF2D
 from datetime import datetime, timedelta
 
+ 
 Input = dict(
   name="input2",
   cacheLocation=r"../s3",
@@ -23,6 +25,8 @@ Input = dict(
       nspectra=300,
       nfreq=33,
       ndir=36,
+      nfeature=3,
+      nchar=32,
     ),
     groups=dict(
       elem=dict(dimensions=["nelem","npe"],variables=dict(
@@ -34,6 +38,9 @@ Input = dict(
       nodes=dict(dimensions=["nnode"],variables=dict(
         bed=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
         friction=dict(type="f4" ,units="" ,standard_name="" ,long_name=""),
+        )),
+      feature=dict(dimensions=["nfeature",'nchar'],variables=dict(
+        name=dict(type="S2",units="" ,standard_name="Feature Name" ,long_name=""),
         )),
       s=dict(dimensions=["ntime", "nnode"] ,variables=dict(
         a=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
@@ -57,8 +64,8 @@ def test_NetCDF2D_2():
   ----------
   """
   netcdf2d=NetCDF2D(Input)
-  elemshape = netcdf2d.groups["elem"].shape
   
+  elemshape = netcdf2d.groups["elem"].shape
   elemvalue = np.arange(np.prod(elemshape)).reshape(elemshape)
   
   netcdf2d["elem","elem"] = elemvalue
@@ -75,10 +82,12 @@ def test_NetCDF2D_2():
   netcdf2d["nodes","bed"] = bedvalue
   np.testing.assert_array_equal(netcdf2d["nodes","bed"], bedvalue)
   
+  netcdf2d['feature','name']=np.array(['USA', 'Japan', 'UK'])
+  np.testing.assert_array_equal(netcdf2d["feature","name"], ['USA', 'Japan', 'UK'])
+  
   sashape = netcdf2d.groups["s"].shape
   savalue = np.arange(np.prod(sashape)).reshape(sashape)
   netcdf2d["s","a"] = savalue
-
   np.testing.assert_array_equal(netcdf2d["s","a"], savalue)
   np.testing.assert_array_equal(netcdf2d["s","a",0], savalue[0])
   np.testing.assert_array_equal(netcdf2d["s","a",0,:], savalue[0,:])
@@ -145,6 +154,7 @@ def test_NetCDF2D_2():
   netcdf2d["ss","e",0,0,0] = np.arange(36)
   np.testing.assert_array_equal(netcdf2d["ss","e",0,0,0], np.arange(36))
   
+  assert netcdf2d.getGroupsByVariable('a')==['s','t'] 
   
   netcdf2d.cache.delete()
 
@@ -164,28 +174,28 @@ def test_NetCDF2D_2_query():
   netcdf2d["t","a"] = savalue.T
   
   np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a"}), savalue)
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0}), savalue[0])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":":"}), savalue[0,:])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":":","node":0}), savalue[:,0])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":0}), savalue[0,0])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":131073}), savalue[0,131073])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":0,"node":262144}), savalue[0,262144])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":1,"node":100}), savalue[1,100])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":1,"node":131073}), savalue[1,131073])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":1,"node":262144}), savalue[1,262144])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":0}), savalue[0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":0,"inode":":"}), savalue[0,:])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":":","inode":0}), savalue[:,0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":0,"inode":0}), savalue[0,0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":0,"inode":131073}), savalue[0,131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":0,"inode":262144}), savalue[0,262144])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":1,"inode":100}), savalue[1,100])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":1,"inode":131073}), savalue[1,131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":1,"inode":262144}), savalue[1,262144])
   
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"0:2","node":0}), savalue[0:2,0])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"0:2","node":131073}), savalue[0:2,131073])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"0:2","node":262144}), savalue[0:2,262144])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":100}), savalue[[0,1],100])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":131073}), savalue[[0,1],131073])
-  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","time":"[0,1]","node":262144}), savalue[[0,1],262144])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":"0:2","inode":0}), savalue[0:2,0])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":"0:2","inode":131073}), savalue[0:2,131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":"0:2","inode":262144}), savalue[0:2,262144])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":"[0,1]","inode":100}), savalue[[0,1],100])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":"[0,1]","inode":131073}), savalue[[0,1],131073])
+  np.testing.assert_array_equal(netcdf2d.query({"group":"s","variable":"a","itime":"[0,1]","inode":262144}), savalue[[0,1],262144])
   
   
   # np.testing.assert_array_equal(netcdf2d.query({"variable":"a"}), savalue.T) # .T its gets the "t" group since it's the latter one
-  np.testing.assert_array_equal(netcdf2d.query({"variable":"a","time":0}), savalue[0])
-  np.testing.assert_array_equal(netcdf2d.query({"variable":"a","time":"0:2","node":0}), savalue[0:2,0])
-  np.testing.assert_array_equal(netcdf2d.query({"variable":"a","node":0}), savalue.T[0])
+  np.testing.assert_array_equal(netcdf2d.query({"variable":"a","itime":0}), savalue[0])
+  np.testing.assert_array_equal(netcdf2d.query({"variable":"a","itime":"0:2","inode":0}), savalue[0:2,0])
+  np.testing.assert_array_equal(netcdf2d.query({"variable":"a","inode":0}), savalue.T[0])
   
   
   netcdf2d.cache.delete()

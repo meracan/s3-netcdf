@@ -13,6 +13,7 @@ def test_NetCDF2D_3():
   netcdf2d=NetCDF2D(Input)
   info = netcdf2d.info()
   assert info['metadata']['title']==Input['nca']['metadata']['title']
+
   
   timeshape = netcdf2d.groups["time"].shape
   timevalue=np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')

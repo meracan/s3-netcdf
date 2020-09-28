@@ -3,6 +3,12 @@ import boto3
 from botocore.errorfactory import ClientError
 from time import sleep
 import time
+
+class AttributeDict(dict):
+    __slots__ = () 
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+
 class S3Client(object):
   """
   Interface to communicate with S3
@@ -17,7 +23,9 @@ class S3Client(object):
       AWS_DEFAULT_REGION=xxx
     }
     """
-    
+    if isinstance(parent,dict):
+      parent=AttributeDict(parent)
+      print(parent)
     self.s3 = boto3.client('s3',**credentials)
     self.s3prefix=parent.s3prefix
     self.parent = parent
@@ -25,6 +33,12 @@ class S3Client(object):
   
   def _gets3path(self,filepath):
     s3path = os.path.relpath(filepath,self.parent.cacheLocation)
+    if self.s3prefix:
+      s3path = self.s3prefix + "/" + s3path
+    return s3path
+  
+  def _gets3cachepath(self,filepath):
+    s3path = os.path.relpath(filepath,self.parent.apiCacheLocation)
     if self.s3prefix:
       s3path = self.s3prefix + "/" + s3path
     return s3path
@@ -98,3 +112,10 @@ class S3Client(object):
     s3path = self._gets3path(filepath)
     self.s3.upload_file(filepath, bucket, s3path)
     # self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path))
+
+
+  def generate_presigned_url(self,filepath):
+    s3path = self._gets3cachepath(filepath)
+    expiration=3600
+    URL=self.s3.generate_presigned_url("get_object",Params={'Bucket': self.bucket,'Key': s3path}, ExpiresIn=expiration)
+    return URL

@@ -2,10 +2,11 @@ import os
 import numpy as np
 from datetime import datetime
 from netCDF4 import Dataset
-from netCDF4 import num2date, date2num
+from netCDF4 import num2date, date2num,stringtochar,chartostring
+
 from .netcdf2d_func import createNetCDF,\
   getItemNetCDF,setItemNetCDF,getDataShape,checkValue,getIndices,getPartitions,getMasterIndices,\
-  getChildShape,getMasterShape,getSubIndex,parseIndex
+  getChildShape,getMasterShape,getSubIndex,parseIndex,iDim,parseIdx
 import time
 np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
@@ -64,36 +65,28 @@ class NetCDF2DGroup(object):
     self.shape = shape
     self.master = master
     self.child = child
-    self.attributes = self._getAttributes()
-    self.variablesSetup = {}
+    self.variables = self.getVariables()
     
-    for vname in src_group.variables:
-      if(vname=="shape" or vname=="master" or vname=="child"):continue
-      dnames = src_group.variables[vname].dimensions
-      dimensions = {}
-      for i,dname in enumerate(dnames):
-        dimensions[dname] = child[i]
-      
-      variables = {}
-      variable = dict(type=src_group.variables[vname].dtype.name,dimensions=dnames)
-      for attribute in src_group.variables[vname].ncattrs():
-        variable[attribute] = getattr(src_group.variables[vname],attribute)
-      variables[vname] = variable
-      self.variablesSetup[vname]=dict(dimensions=dimensions,variables=variables)
+    dimensions={}
+    groupD=src_group.groupDimensions
+    if not isinstance(groupD,list):groupD=[groupD]
+    for i,name in enumerate(groupD):
+      dimensions[name]=self.child[i]
+    self.dimensions=dimensions
+
   
-  def _getAttributes(self):
+  def getVariables(self):
     """
     """
     src_group = self.src_group
-    _attributes={}
+    variables={}
     for vname in src_group.variables:
-      
+      if(vname=="shape" or vname=="master" or vname=="child"):continue
       variable = src_group.variables[vname]
-      attributes = {}
-      for attribute in variable.ncattrs():
-        attributes[attribute] = getattr(variable,attribute)
-      _attributes[vname]=attributes
-    return _attributes
+      attributes = {'type':np.dtype(variable.dtype).name,'dimensions':variable.dimensions}
+      for attribute in variable.ncattrs():attributes[attribute] = getattr(variable,attribute)
+      variables[vname]=attributes
+    return variables
   
   def __checkVariable(self,idx):
     """
@@ -104,26 +97,26 @@ class NetCDF2DGroup(object):
     idx   = list(idx)
     vname = idx.pop(0)
     idx   = tuple(idx)
-    if not vname in self.attributes:raise Exception("Variable does not exist")
+    if not vname in self.variables:raise Exception("Variable {} does not exist".format(vname))
     return vname,idx
   
   def getPartitions(self,vname,obj,partitions_only=True):
     """
 
     """
+    if not vname in self.variables:raise Exception("Variable does not exist in group {}".format(self.name))
+    
     shape=self.shape
     masterShape=self.master
-    
-    if not vname in self.variablesSetup:raise Exception("Variable does not exist in group {}".format(self.name))
-    variable=self.variablesSetup[vname]
-    
+    variable=self.variables[vname]
     dimensions=variable['dimensions']
     
-    values=[parseIndex(obj.get(dimension[1:],None)) for dimension in dimensions] # Remove n from the dimension name (e.g. ntime=>time). It will look for time in the obj
+    values=[parseIdx(obj.get(iDim(dimension),None)) for dimension in dimensions] # Remove n from the dimension name (e.g. ntime=>time). It will look for time in the obj
     
     idx=tuple(values)
     
     indices = getIndices(idx,shape)
+    # print(indices)
     partitions = getPartitions(indices, shape,masterShape)
    
     if partitions_only: return partitions
@@ -150,7 +143,7 @@ class NetCDF2DGroup(object):
           if self.parent.localOnly:raise Exception("File does not exist. No data was assigned. {}".format(filepath))
           if not self.parent.s3.exists(filepath):raise Exception("File does not exist. No data was assigned. {}".format(filepath))
           self.parent.s3.download(filepath)
-          
+        
         d=_data.flatten()
         with Dataset(filepath, "r") as src_file:
           var = src_file.variables[vname]
@@ -159,10 +152,12 @@ class NetCDF2DGroup(object):
       
       if _value is not None:
         if not os.path.exists(filepath):
-          if localOnly:createNetCDF(filepath,**self.variablesSetup[vname])  
+          _variable={}
+          _variable[vname]=self.variables[vname]
+          if localOnly:createNetCDF(filepath,dimensions=self.dimensions,variables=_variable)  
           else:
             if s3.exists(filepath):s3.download(filepath)
-            else:createNetCDF(filepath,**self.variablesSetup[vname])  
+            else:createNetCDF(filepath,dimensions=self.dimensions,variables=_variable)  
         
         with Dataset(filepath, "r+") as src_file:
           var = src_file.variables[vname]
@@ -175,14 +170,15 @@ class NetCDF2DGroup(object):
     shape=self.shape
     indices = getIndices(idx,shape)
     ishape=[len(arr) for arr in indices]
-    tmshape,tcshape=getMasterShape(ishape,return_childshape=True,ncSize=100.0)
+    tmshape,tcshape=getMasterShape(ishape,return_childshape=True,ncSize=self.parent.memorySize)
+    
     if value is not None:
       value=value.reshape(ishape)
     else:
       dataShape = getDataShape(indices)
-      data = np.empty(dataShape)
+      vtype=self.variables[vname]['type']
+      data = np.empty(dataShape,dtype=vtype)
       data=data.reshape(ishape)
-      
     
     matrix=[np.arange(idim) for idim in tmshape[:len(ishape)]]
     meshgrid = np.meshgrid(*matrix,indexing="ij")
@@ -207,14 +203,15 @@ class NetCDF2DGroup(object):
     Get data based on the query
     """
     vname,idx = self.__checkVariable(idx)
-    attributes = self.attributes[vname]
+    attributes = self.variables[vname]
 
     data=self.__subrun(vname,idx)
     
     if "calendar" in attributes:
       data=data.astype("datetime64[s]")
       # data=num2date(data,units=attributes["units"],calendar=attributes["calendar"])
-    
+    if attributes['type']=='str':
+      data=chartostring(data.astype("S1"))
     return data  
     
   def __setitem__(self, idx,value):
@@ -223,11 +220,15 @@ class NetCDF2DGroup(object):
     """
 
     vname,idx = self.__checkVariable(idx)
-    attributes = self.attributes[vname]
+    attributes = self.variables[vname]
     
     if "calendar" in attributes and isinstance(value[0],datetime):
       value=date2num(value,units=attributes["units"],calendar=attributes["calendar"])
-
+    
+    if attributes['type']=='str':
+      nchar=attributes['dimensions'][1]
+      value=stringtochar(np.array(value).astype("S{}".format(self.dimensions[nchar])))
+      
     value= checkValue(value,idx,self.shape)
     self.__subrun(vname,idx,value=value)
 

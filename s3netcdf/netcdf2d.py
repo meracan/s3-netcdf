@@ -1,12 +1,12 @@
 import os
-
+import copy
 from netCDF4 import Dataset
 from netCDF4 import num2date, date2num
 import numpy as np
 from datetime import datetime, timedelta
 import copy
 
-from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape,parseIndex
+from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape,parseIndex,parseObj
 from .netcdf2dGroup import NetCDF2DGroup
 from .s3client import S3Client
 from .cache import Cache
@@ -60,9 +60,10 @@ class NetCDF2D(object):
     self.name = name = obj.get("name",None)
     self.localOnly = localOnly = obj.get("localOnly",True)
     self.bucket = bucket = obj.get("bucket",None)
-    self.s3prefix=obj.get("prefix",None)
+    self.s3prefix=obj.get("s3prefix",None)
     self.squeeze=obj.pop("squeeze",False)
     self.cacheLocation = cacheLocation = obj.get("cacheLocation",os.getcwd)
+    self.apiCacheLocation=obj.get("apiCacheLocation",os.getcwd)
     self.folder = folder = os.path.join(cacheLocation, name)
     self.maxPartitions= obj.pop("maxPartitions",10)
     self.ncSize = obj.pop("ncSize",10)
@@ -70,6 +71,7 @@ class NetCDF2D(object):
     self.cacheSize = obj.pop("cacheSize",10) * 1024**2
     self.cache  = Cache(self)
     self.groups = {}
+    self.memorySize=obj.pop("memorySize",20)
     self.verbose= verbose =obj.pop("verbose",False)
     # TODO: Do I need this here?
     self.showProgress=obj.get("showProgress",False)
@@ -102,6 +104,7 @@ class NetCDF2D(object):
     self.nca = Dataset(self.ncaPath, "r+")
     for groupname in self.nca.groups:
       self.groups[groupname] = NetCDF2DGroup(self, self.nca, groupname)
+    self._meta=self.meta()
   
   def closeNCA(self):
     self.nca.close()
@@ -115,15 +118,52 @@ class NetCDF2D(object):
   def setlocalOnly(self,value):
     self.localOnly=value
   
-  def getVariables(self,groupname):
-    meta=self.meta()
-    if not groupname in meta['groups']:raise Exception("Group does not exist")
-    data=meta['groups'][groupname]['variables']
-    del data['shape']
-    del data['master']
-    del data['child']
-    return data
-
+  def getGroupsByVariable(self,vname):
+    meta=self._meta
+    if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
+    return meta['groupsByVariable'][vname]
+  
+  def getDimensionsByVariable(self,vname):
+    meta=self._meta
+    if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
+    groups=meta['groupsByVariable'][vname]
+    dimensions=[]
+    for gname in groups:
+      dimensions.extend(meta['groups'][gname]['dimensions'])
+    
+    dimensions=list(set(dimensions))
+    return dimensions
+  
+  def getVariablesByDimension(self,dname):
+    meta=self._meta
+    variablesByDimension=meta['variablesByDimension']
+    if not dname in variablesByDimension:raise Exception("Dimension {} does not exist".format(dname))
+    return variablesByDimension[dname]
+  
+  def getMeshMeta(self):
+    meta=self._meta
+    return meta['meshMeta']
+    
+    
+  def getMetaByVariable(self,vname):
+    meta=self._meta
+    if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
+    groups=meta['groupsByVariable'][vname]
+    return meta['groups'][groups[0]]['variables'][vname]
+  
+  def getVariables(self):
+    meta=copy.deepcopy(self._meta)
+    variables={}
+    for gname in meta['groups']:
+      group=meta['groups'][gname]
+      vars=group['variables']
+      del vars['shape']
+      del vars['master']
+      del vars['child']
+      for vname in vars:
+        variables[vname]=vars[vname]
+    return variables
+  
   def _item_(self,idx):
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("groupname and variablename are required, e.g netcdf2d['{groupname}','{variablename}']")
     
@@ -132,7 +172,7 @@ class NetCDF2D(object):
     idx = tuple(idx)
     
     groups = self.groups
-    if not groupname in groups:raise Exception("Group does not exist")
+    if not groupname in groups:raise Exception("Group '{}' does not exist".format(groupname))
     group = groups[groupname]
     return group,idx
   
@@ -154,29 +194,32 @@ class NetCDF2D(object):
     group[idx]=value
     self.cache.clearOldest()
 
-  def query(self,obj):
+  def query(self,obj,return_dimensions=False):
     """
       Get data using obj instead of using __getitem__
       This function will search the obj using keys such ash "group","variable" and name of dimensions (e.g. "x","time")
       If "group" does not exist, it will find the "group" based on the name of the variable and with the least amount of partition (e.g "s","t")
     """
-    if not 'variable' in obj:raise Exception("Needs 'variable' in query")
+    meta=self._meta
+    dimensions=meta['dimensions']
+    obj=parseObj(obj,dimensions)
+    # if not 'variable' in obj:raise Exception("Needs 'variable' in query")
     vname=obj['variable']
-    gname=obj.get('group',None)
+    gname=obj['group']
     
     if gname is None:
-      meta=self.meta()
-      if not vname in meta['vars']:raise Exception("Variable does not exist")
-      gname=meta['vars'][vname]
-    
+      groups=self.getGroupsByVariable(vname)
       # If  multiple group, get group with minimum partitions
-      if isinstance(gname,list):
-        gname=min(gname, key=lambda x: len(self.groups[x].getPartitions(vname,obj)))
+      # if isinstance(gname,list):
+      
+      gname=min(groups, key=lambda x: len(self.groups[x].getPartitions(vname,obj)))
     
     partitions,group,idx=self.groups[gname].getPartitions(vname,obj,False)
-    if len(partitions)>self.maxPartitions:raise Exception("Change group or select smaller query - (admin) maxPartitions can be changed")
+    
+    if len(partitions)>self.maxPartitions:raise Exception("Change group or select smaller query - {} /MaxPartitions is {}".format(len(partitions),self.maxPartitions))
     
     data = group[(vname,*idx)]
     self.cache.clearOldest()
     data= np.squeeze(data) if self.squeeze else data
+    if return_dimensions:return data,[name for name,i in self.groups[gname].dimensions.items()]
     return data
