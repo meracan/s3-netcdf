@@ -203,6 +203,7 @@ class NetCDF2D(object):
     meta=self._meta
     dimensions=meta['dimensions']
     obj=parseObj(obj,dimensions)
+    
     # if not 'variable' in obj:raise Exception("Needs 'variable' in query")
     vname=obj['variable']
     gname=obj['group']

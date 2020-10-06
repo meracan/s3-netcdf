@@ -116,9 +116,9 @@ class NetCDF2DGroup(object):
     idx=tuple(values)
     
     indices = getIndices(idx,shape)
-    # print(indices)
+    
     partitions = getPartitions(indices, shape,masterShape)
-   
+
     if partitions_only: return partitions
     return partitions,self,idx
 

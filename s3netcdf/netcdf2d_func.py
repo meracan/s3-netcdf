@@ -476,7 +476,7 @@ def getPartitions(indices,shape,masterShape):
   """    
   limits=[]
   n = len(shape)
-  # print(masterShape[n:])
+  
   for i,step in enumerate(masterShape[n:]):
     _min =np.min(indices[i])
     _max = np.max(indices[i])
@@ -484,13 +484,13 @@ def getPartitions(indices,shape,masterShape):
     
     if(np.all(l!=_max)):
       l=np.append(l,_max)
-    limits.append(l)
-  
-  
+    if len(indices[i])<len(l):limits.append(indices[i])
+    else:limits.append(l)
+    
   meshgrid = np.meshgrid(*limits,indexing="ij")
   limits = np.array(meshgrid).T
   limits = np.concatenate(limits)
-  # print(limits)
+  
   masterLimits = getMasterIndices(limits.T,shape,masterShape,False)
   
   allPartitions=masterLimits[:, :n]

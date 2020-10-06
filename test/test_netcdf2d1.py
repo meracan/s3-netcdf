@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import time
 
 Input = dict(
-  name="input1",
+  name="s3input1",
   cacheLocation=r"../s3",
   localOnly=True,
   bucket="uvic-bcwave",
@@ -38,7 +38,7 @@ Input = dict(
   )
 )
 
-def test_NetCDF2D_1(input):
+def test_NetCDF2D_1():
   """
   Basic testing to test all features: create, write & read, caching & s3 commands.
   Logical process:
@@ -63,7 +63,7 @@ def test_NetCDF2D_1(input):
   ----------
   """
   # 1. Create Master file and check metadata
-  netcdf2d=NetCDF2D(input)
+  netcdf2d=NetCDF2D(Input)
   info = netcdf2d.info()
   assert info['metadata']['title']==Input['nca']['metadata']['title']
 
@@ -104,10 +104,10 @@ def test_NetCDF2D_1(input):
   netcdf2d.s3.delete()
 
 
-def test_NetCDF2D_1b(input):
+def test_NetCDF2D_1b():
   # 6. Part2 cache files and upload to s3 automatically
-  input['localOnly']=False
-  netcdf2d=NetCDF2D(input)
+  Input['localOnly']=False
+  netcdf2d=NetCDF2D(Input)
   
   # 7. Write to partition files and upload to s3
   sashape = netcdf2d.groups["s"].shape
@@ -126,5 +126,5 @@ def test_NetCDF2D_1b(input):
   
 
 if __name__ == "__main__":
-  test_NetCDF2D_1(Input)
-  test_NetCDF2D_1b(Input)
+  test_NetCDF2D_1()
+  test_NetCDF2D_1b()

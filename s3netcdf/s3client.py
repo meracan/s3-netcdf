@@ -38,7 +38,7 @@ class S3Client(object):
     return s3path
   
   def _gets3cachepath(self,filepath):
-    s3path = os.path.relpath(filepath,self.parent.apiCacheLocation)
+    s3path = os.path.relpath(filepath,self.parent.cacheLocation)
     if self.s3prefix:
       s3path = self.s3prefix + "/" + s3path
     return s3path
