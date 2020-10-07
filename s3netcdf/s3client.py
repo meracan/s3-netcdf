@@ -102,16 +102,16 @@ class S3Client(object):
     
     folder = os.path.dirname(filepath)
     if not os.path.exists(folder): os.makedirs(folder)
-    self.s3.download_file(bucket, s3path, filepath)
+    # self.s3.download_file(bucket, s3path, filepath)
     # print("Download - {} - {}".format(filepath,time.time() - start))
-    # self.loop(lambda:self.s3.download_file(bucket, s3path, filepath))
+    self.loop(lambda:self.s3.download_file(bucket, s3path, filepath))
 
     
   def upload(self,filepath):
     bucket = self.bucket
     s3path = self._gets3path(filepath)
-    self.s3.upload_file(filepath, bucket, s3path)
-    # self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path))
+    # self.s3.upload_file(filepath, bucket, s3path)
+    self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path))
 
 
   def generate_presigned_url(self,filepath):
