@@ -31,7 +31,9 @@ def createNetCDF(filePath,folder=os.getcwd(),metadata={},dimensions={},variables
   with Dataset(filePath, "w") as src_file:
     # Write metadata
     for key in metadata:
-      setattr(src_file, key, metadata[key])
+      value=metadata[key]
+      if isinstance(value,dict):value=json.dumps(value)
+      setattr(src_file, key, value)
     
     # Write dimensions to NetCDF
     for name in dimensions:
@@ -134,7 +136,14 @@ class NpEncoder(json.JSONEncoder):
         return obj.tolist()
     else:
         return super(NpEncoder, self).default(obj)
-            
+  
+def is_json(myjson):
+  try:
+    json_object = json.loads(myjson)
+  except:
+    return False
+  return True
+  
 def NetCDFSummary(filePath):
   '''
   NetCDFSummary outputs metadata,dimensions, variables.
@@ -155,7 +164,9 @@ def NetCDFSummary(filePath):
   with Dataset(filePath, "r") as src_file:
     metadata={}
     for id in src_file.ncattrs():
-      metadata[id]=src_file.getncattr(id)
+      value=src_file.getncattr(id)
+      if is_json(value):value=json.loads(value)
+      metadata[id]=value
     
     dimensions={}
     for id in src_file.dimensions:
@@ -180,12 +191,8 @@ def NetCDFSummary(filePath):
       
       # Save variables in vars
       for key in group['variables'].keys():
-        if key in groupsByVariable:
-          groupsByVariable[key].append(id)
-          # if isinstance(groupsByVariable[key],list):groupsByVariable[key].append(id)
-          # else:groupsByVariable[key]=[groupsByVariable[key],id] 
-        else:
-          groupsByVariable[key]=[id]
+        if key in groupsByVariable:groupsByVariable[key].append(id)
+        else:groupsByVariable[key]=[id]
       
       # Get mesh information
       if groupD[0] in ["nnode","nnodes","nelem"]:

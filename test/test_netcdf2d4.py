@@ -32,7 +32,7 @@ Input = dict(
       time=dict(dimensions=["ntime"],variables=dict(
         time=dict(type="f8",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
         )),
-      nodes=dict(dimensions=["nnode"],variables=dict(
+      node=dict(dimensions=["nnode"],variables=dict(
         bed=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
         friction=dict(type="f4" ,units="" ,standard_name="" ,long_name=""),
         )),

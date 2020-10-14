@@ -107,11 +107,12 @@ class S3Client(object):
     self.loop(lambda:self.s3.download_file(bucket, s3path, filepath))
 
     
-  def upload(self,filepath):
+  def upload(self,filepath,header={}):
     bucket = self.bucket
     s3path = self._gets3path(filepath)
     # self.s3.upload_file(filepath, bucket, s3path)
-    self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path))
+    
+    self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path,header))
 
 
   def generate_presigned_url(self,filepath):

@@ -1,5 +1,5 @@
 {
-  "name":"input3",
+  "name":"s3input3",
   "cacheLocation":"../s3",
   "localOnly":true,
   "bucket":"uvic-bcwave",

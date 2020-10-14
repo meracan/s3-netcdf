@@ -21,7 +21,7 @@ Input = dict(
           "time":{"type":"f8", "units":"hours since 1970-01-01 00:00:00.0","calendar":"gregorian" ,"standard_name":"Datetime" ,"long_name":"Datetime"}
         }
       },
-      "nodes":{"dimensions":["nnode"],"variables":{
+      "node":{"dimensions":["nnode"],"variables":{
           "bed":{"type":"f4", "units":"m" ,"standard_name":"Bed Elevation, m" ,"long_name":"Description of data source"},
           "friction":{"type":"f4", "units":"" ,"standard_name":"Bed Friction (Manning's)" ,"long_name":"Description of data source"}
         }
@@ -75,10 +75,10 @@ def test_NetCDF2D_1():
   netcdf2d["time","time"] = timevalue
   np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
   
-  bedshape = netcdf2d.groups["nodes"].shape
+  bedshape = netcdf2d.groups["node"].shape
   bedvalue = np.arange(np.prod(bedshape)).reshape(bedshape)
-  netcdf2d["nodes","bed"] = bedvalue
-  np.testing.assert_array_equal(netcdf2d["nodes","bed"], bedvalue)
+  netcdf2d["node","bed"] = bedvalue
+  np.testing.assert_array_equal(netcdf2d["node","bed"], bedvalue)
   
   sashape = netcdf2d.groups["s"].shape
   savalue = np.arange(np.prod(sashape)).reshape(sashape)

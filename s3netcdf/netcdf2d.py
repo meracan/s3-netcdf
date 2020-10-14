@@ -86,6 +86,7 @@ class NetCDF2D(object):
     if not os.path.exists(ncaPath):
       if localOnly:
         if verbose:print("Create new .nca from object - localOnly")
+        if not "nca" in obj: raise Exception("NetCDF2D needs a nca object, localOnly=True")
         self.create(obj)
       elif s3.exists(ncaPath):
         if verbose:print("Downloading .nca from S3 - {}".format(ncaPath))
@@ -143,7 +144,6 @@ class NetCDF2D(object):
   def getMeshMeta(self):
     meta=self._meta
     return meta['meshMeta']
-    
     
   def getMetaByVariable(self,vname):
     meta=self._meta
@@ -210,9 +210,6 @@ class NetCDF2D(object):
     
     if gname is None:
       groups=self.getGroupsByVariable(vname)
-      # If  multiple group, get group with minimum partitions
-      # if isinstance(gname,list):
-      
       gname=min(groups, key=lambda x: len(self.groups[x].getPartitions(vname,obj)))
     
     partitions,group,idx=self.groups[gname].getPartitions(vname,obj,False)
