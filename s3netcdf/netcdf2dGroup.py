@@ -120,7 +120,7 @@ class NetCDF2DGroup(object):
     partitions = getPartitions(indices, shape,masterShape)
 
     if partitions_only: return partitions
-    return partitions,self,idx
+    return partitions,self,idx,indices
 
 
     

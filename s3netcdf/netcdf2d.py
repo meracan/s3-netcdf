@@ -194,7 +194,7 @@ class NetCDF2D(object):
     group[idx]=value
     self.cache.clearOldest()
 
-  def query(self,obj,return_dimensions=False):
+  def query(self,obj,return_dimensions=False,return_indices=False):
     """
       Get data using obj instead of using __getitem__
       This function will search the obj using keys such ash "group","variable" and name of dimensions (e.g. "x","time")
@@ -212,12 +212,15 @@ class NetCDF2D(object):
       groups=self.getGroupsByVariable(vname)
       gname=min(groups, key=lambda x: len(self.groups[x].getPartitions(vname,obj)))
     
-    partitions,group,idx=self.groups[gname].getPartitions(vname,obj,False)
+    partitions,group,idx,indices=self.groups[gname].getPartitions(vname,obj,False)
     
     if len(partitions)>self.maxPartitions:raise Exception("Change group or select smaller query - {} /MaxPartitions is {}".format(len(partitions),self.maxPartitions))
     
     data = group[(vname,*idx)]
     self.cache.clearOldest()
     data= np.squeeze(data) if self.squeeze else data
-    if return_dimensions:return data,[name for name,i in self.groups[gname].dimensions.items()]
+    
+    if return_dimensions and return_indices:return data,meta['groups'][gname]['dimensions'],indices
+    if return_dimensions:return data,meta['groups'][gname]['dimensions']
+    if return_indices:return data,indices
     return data
