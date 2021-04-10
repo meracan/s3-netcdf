@@ -27,9 +27,15 @@ class S3Client(object):
       parent=AttributeDict(parent)
       print(parent)
     self.s3 = boto3.client('s3',**credentials)
+    
     self.s3prefix=parent.s3prefix
     self.parent = parent
     self.bucket = parent.bucket
+    
+    if(parent.dynomodb):
+      dynamodb= boto3.resource('dynamodb')
+      self.table = dynamodb.Table(parent.dynomodb)
+    
   
   def _gets3path(self,filepath):
     s3path = os.path.relpath(filepath,self.parent.cacheLocation)
@@ -73,7 +79,13 @@ class S3Client(object):
     keys = [{"Key":file["Key"]} for file in files]
     response=self.s3.delete_objects(Bucket=self.bucket, Delete={"Objects":keys})
     return True
-
+  
+  def deleteFile(self,filepath):
+    s3path = self._gets3path(filepath)
+    response=self.s3.delete_objects(Bucket=self.bucket, Delete={"Objects":[{"Key":s3path}]})
+    return True
+    
+    
   def exists(self,filepath):
     s3path = self._gets3path(filepath)
     try:
@@ -101,22 +113,34 @@ class S3Client(object):
     s3path = self._gets3path(filepath)
     
     folder = os.path.dirname(filepath)
-    if not os.path.exists(folder): os.makedirs(folder)
-    # self.s3.download_file(bucket, s3path, filepath)
-    # print("Download - {} - {}".format(filepath,time.time() - start))
+    if not os.path.exists(folder): 
+      os.makedirs(folder, exist_ok=True)
     self.loop(lambda:self.s3.download_file(bucket, s3path, filepath))
 
     
-  def upload(self,filepath,header={}):
+  def upload(self,filepath, ExtraArgs={}):
     bucket = self.bucket
     s3path = self._gets3path(filepath)
+    if self.parent.storageClass is not None:
+      ExtraArgs['StorageClass']=self.parent.storageClass
     # self.s3.upload_file(filepath, bucket, s3path)
     
-    self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path,header))
+    self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path,ExtraArgs))
 
+  def insert(self,filepath,projectId=""):
+    s3path = self._gets3path(filepath)
+    timestamp = int(time.time()*1000)
+    item = {
+      'id': s3path,
+      'name':s3path,
+      'projectId': projectId,
+      'createdAt': timestamp,
+      'updatedAt': timestamp,
+    }
+    self.table.put_item(Item=item)
 
   def generate_presigned_url(self,filepath):
     s3path = self._gets3cachepath(filepath)
-    expiration=3600
+    expiration=172800
     URL=self.s3.generate_presigned_url("get_object",Params={'Bucket': self.bucket,'Key': s3path}, ExpiresIn=expiration)
     return URL

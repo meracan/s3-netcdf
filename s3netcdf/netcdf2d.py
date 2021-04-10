@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import copy
 
-from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape,parseIndex,parseObj
+from .netcdf2d_func import createNetCDF,NetCDFSummary,getMasterShape,parseIndex,parseObj,getVariables,transform
 from .netcdf2dGroup import NetCDF2DGroup
 from .s3client import S3Client
 from .cache import Cache
@@ -46,6 +46,8 @@ class NetCDF2D(object):
   folder :path
   localOnly:bool
   bucket:str
+  storageClass:str
+    STANDARD,STANDARD_IA,ONEZONE_IA
   
   ncPath : path
     File contains nodes, connectivity table and static variables 
@@ -60,6 +62,9 @@ class NetCDF2D(object):
     self.name = name = obj.get("name",None)
     self.localOnly = localOnly = obj.get("localOnly",True)
     self.bucket = bucket = obj.get("bucket",None)
+    self.storageClass=obj.get("storageClass",None)
+    self.dynomodb = dynomodb = obj.get("dynomodb",None)
+    self.projectId= obj.get("projectId","")
     self.s3prefix=obj.get("s3prefix",None)
     self.squeeze=obj.pop("squeeze",False)
     self.cacheLocation = cacheLocation = obj.get("cacheLocation",os.getcwd)
@@ -76,25 +81,31 @@ class NetCDF2D(object):
     # TODO: Do I need this here?
     self.showProgress=obj.get("showProgress",False)
     self.pbar=None
+    overwrite=obj.pop("overwrite",False)
+    
+    self.isTransform=obj.pop("transform",True) # Transform values from UInt to float
     
     if name is None :raise Exception("NetCDF2D needs a name")
     if not localOnly and bucket is None:raise Exception("Need a s3 bucket")
-    if not os.path.exists(folder): os.makedirs(folder)
+    if not os.path.exists(folder): os.makedirs(folder,exist_ok = True)
   
     self.ncaPath = ncaPath = os.path.join(folder,"{}.nca".format(name))
+    self._meta=None
+    
     
     if not os.path.exists(ncaPath):
       if localOnly:
         if verbose:print("Create new .nca from object - localOnly")
         if not "nca" in obj: raise Exception("NetCDF2D needs a nca object, localOnly=True")
         self.create(obj)
-      elif s3.exists(ncaPath):
+      elif s3.exists(ncaPath) and not overwrite:
         if verbose:print("Downloading .nca from S3 - {}".format(ncaPath))
         s3.download(ncaPath)
       else:
         if verbose:print("Create new .nca from object - {} does not exist on S3".format(ncaPath))
         self.create(obj)
         s3.upload(ncaPath)
+        if self.dynomodb:s3.insert(ncaPath,self.projectId)
     self.openNCA()
     
   def create(self,obj):
@@ -102,30 +113,77 @@ class NetCDF2D(object):
       createNetCDF(self.ncaPath,folder=self.folder,ncSize=self.ncSize,**obj["nca"])  
   
   def openNCA(self):
-    self.nca = Dataset(self.ncaPath, "r+")
+    self.nca = Dataset(self.ncaPath, "r")
     for groupname in self.nca.groups:
       self.groups[groupname] = NetCDF2DGroup(self, self.nca, groupname)
-    self._meta=self.meta()
   
   def closeNCA(self):
     self.nca.close()
 
   def info(self):
-    return NetCDFSummary(self.ncaPath)
-    
+    return self.meta
+  
+  def setTransform(self,transform):
+    self.isTransform=transform
+    return self
+  
+  def transform(self,vname,value,set):
+    attributes = self.variables[vname]
+    return NetCDF2D.transform(attributes,value,set)
+  
+  @staticmethod
+  def transform(attributes,value,set):
+    if "min" in attributes and "max" in attributes and attributes['type'] in ["uint8","uint16","uint32"]:
+      return transform(attributes,value,set)
+    else: 
+      raise Exception("Cannot transform type={}, min={},max={})".format(attributes['type'],attributes['min'],attributes['max']))
+  
+  @property  
   def meta(self):
-    return NetCDFSummary(self.ncaPath)
+    if self._meta is None:
+      self._meta=NetCDFSummary(self.ncaPath)
+    return self._meta
 
+  @property
+  def variables(self):
+    return getVariables(self.meta)
+  
+  @property
+  def dimensions(self):
+    return self.meta['dimensions']
+  
+  
+  
+  def uploadedFile(self,gname,vname):
+    return os.path.join(self.folder,"uploads","{}.{}.txt".format(gname,vname))
+  
+  def addUploadedFile(self,gname,vname):
+    filepath = self.uploadedFile(gname,vname)
+    folder=os.path.dirname(filepath)
+    if not os.path.exists(folder):
+      os.makedirs(folder,exist_ok=True)
+    with open(filepath, "w") as f:f.write("")
+    return self.s3.upload(filepath)
+  
+  def removeUploadedFile(self,gname,vname):
+    return self.s3.deleteFile(self.uploadedFile(gname,vname))
+    
+  def isUploaded(self,gname,vname):
+    return self.s3.exists(self.uploadedFile(gname,vname))
+  
+  
+  def getVariables(self):return getVariables(self.meta) #TODO:Depreciate
+  
   def setlocalOnly(self,value):
     self.localOnly=value
   
   def getGroupsByVariable(self,vname):
-    meta=self._meta
+    meta=self.meta
     if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
     return meta['groupsByVariable'][vname]
   
   def getDimensionsByVariable(self,vname):
-    meta=self._meta
+    meta=self.meta
     if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
     groups=meta['groupsByVariable'][vname]
     dimensions=[]
@@ -136,33 +194,27 @@ class NetCDF2D(object):
     return dimensions
   
   def getVariablesByDimension(self,dname):
-    meta=self._meta
+    meta=self.meta
     variablesByDimension=meta['variablesByDimension']
     if not dname in variablesByDimension:raise Exception("Dimension {} does not exist".format(dname))
     return variablesByDimension[dname]
   
   def getMeshMeta(self):
-    meta=self._meta
+    meta=self.meta
     return meta['meshMeta']
     
   def getMetaByVariable(self,vname):
-    meta=self._meta
-    if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
-    groups=meta['groupsByVariable'][vname]
-    return meta['groups'][groups[0]]['variables'][vname]
+    """
+    Depreciate
+    """
+    raise Exception("getMetaByVariable is depreciated")
+    # meta=self.meta
+    # if not vname in meta['groupsByVariable']:raise Exception("Variable {} does not exist".format(vname))
+    # groups=meta['groupsByVariable'][vname]
+    # return meta['groups'][groups[0]]['variables'][vname]
   
-  def getVariables(self):
-    meta=copy.deepcopy(self._meta)
-    variables={}
-    for gname in meta['groups']:
-      group=meta['groups'][gname]
-      vars=group['variables']
-      del vars['shape']
-      del vars['master']
-      del vars['child']
-      for vname in vars:
-        variables[vname]=vars[vname]
-    return variables
+      
+  
   
   def _item_(self,idx):
     if not isinstance(idx,tuple) or len(idx)<2:raise TypeError("groupname and variablename are required, e.g netcdf2d['{groupname}','{variablename}']")
@@ -193,14 +245,14 @@ class NetCDF2D(object):
     group,idx=self._item_(idx)
     group[idx]=value
     self.cache.clearOldest()
-
+  
   def query(self,obj,return_dimensions=False,return_indices=False):
     """
       Get data using obj instead of using __getitem__
       This function will search the obj using keys such ash "group","variable" and name of dimensions (e.g. "x","time")
       If "group" does not exist, it will find the "group" based on the name of the variable and with the least amount of partition (e.g "s","t")
     """
-    meta=self._meta
+    meta=self.meta
     dimensions=meta['dimensions']
     obj=parseObj(obj,dimensions)
     

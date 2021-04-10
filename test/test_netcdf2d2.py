@@ -27,6 +27,8 @@ Input = dict(
       ndir=36,
       nfeature=3,
       nchar=32,
+      nD=11,
+      nV=5,
     ),
     groups=dict(
       elem=dict(dimensions=["nelem","npe"],variables=dict(
@@ -54,6 +56,15 @@ Input = dict(
       st=dict(dimensions=["nspectra" ,"ntime", "nfreq", "ndir"] ,variables=dict(
         e=dict(type="f4" ,units="watts" ,standard_name="" ,long_name=""),
         )),
+      sV=dict(dimensions=["nD" ,"nV", "nnode"] ,variables=dict(
+        f=dict(type="f4" ,units="watts" ,standard_name="" ,long_name=""),
+      )),
+      u1s=dict(dimensions=["ntime", "nnode"] ,variables=dict(
+        f=dict(type="u1",ftype="f4",max=25.5,min=0.0,units="m" ,standard_name="" ,long_name=""),
+        g=dict(type="u1",max=25.5,min=0.0,units="m" ,standard_name="" ,long_name=""),
+        h=dict(type="u4",max=25.5,min=0.0,units="m" ,standard_name="" ,long_name=""),
+        )),
+        
     )
   )
 )
@@ -123,6 +134,7 @@ def test_NetCDF2D_2():
   np.testing.assert_array_equal(netcdf2d["s","a",0,100:110], z10)
   np.testing.assert_array_equal(netcdf2d["s","a",1,100:110], z10)
   
+  
   eshape = netcdf2d.groups["ss"].shape
   evalue = np.arange(np.prod(eshape)).reshape(eshape)
   netcdf2d["ss","e"] = evalue
@@ -153,6 +165,26 @@ def test_NetCDF2D_2():
   np.testing.assert_array_equal(netcdf2d["ss","e",0:2,250:260,0,0], np.zeros(20).reshape((2,10)))
   netcdf2d["ss","e",0,0,0] = np.arange(36)
   np.testing.assert_array_equal(netcdf2d["ss","e",0,0,0], np.arange(36))
+  
+  
+  netcdf2d["sV","f",0] = 0.0
+  netcdf2d["sV","f",6:11] = np.ones((5,5,262145))
+  
+  
+  # Testing transform
+  netcdf2d["u1s","f"] = savalue
+  np.testing.assert_array_equal(netcdf2d["u1s","f"], np.clip(savalue,0,25.5))
+  netcdf2d["u1s","g"] = savalue
+  np.testing.assert_array_equal(netcdf2d["u1s","g"],  np.clip(savalue.astype('f4'),0,25.5))
+  
+  value=savalue/(np.prod(sashape))*25.5
+  netcdf2d["u1s","h"] = value
+  np.testing.assert_almost_equal(netcdf2d["u1s","h"],value,decimal=8)
+  
+  attributes=netcdf2d.variables['h']
+  f_u=NetCDF2D.transform(attributes,value,set=True)
+  f_f=NetCDF2D.transform(attributes,f_u,set=False)
+  np.testing.assert_almost_equal(value,f_f,decimal=8)
   
   assert netcdf2d.getGroupsByVariable('a')==['s','t'] 
   
@@ -197,8 +229,10 @@ def test_NetCDF2D_2_query():
   np.testing.assert_array_equal(netcdf2d.query({"variable":"a","itime":"0:2","inode":0}), savalue[0:2,0])
   np.testing.assert_array_equal(netcdf2d.query({"variable":"a","inode":0}), savalue.T[0])
   
-  
   netcdf2d.cache.delete()
+  
+  
+
   
 
 if __name__ == "__main__":

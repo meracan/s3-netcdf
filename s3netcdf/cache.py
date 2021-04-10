@@ -37,6 +37,7 @@ class Cache(object):
     
   def clearOldest(self):
     if self.parent.localOnly:return
+    
     cacheSize = self.parent.cacheSize
     
     files = self.getNCs()

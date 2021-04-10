@@ -6,7 +6,8 @@ from netCDF4 import num2date, date2num,stringtochar,chartostring
 
 from .netcdf2d_func import createNetCDF,\
   getItemNetCDF,setItemNetCDF,getDataShape,checkValue,getIndices,getPartitions,getMasterIndices,\
-  getChildShape,getMasterShape,getSubIndex,parseIndex,iDim,parseIdx
+  getChildShape,getMasterShape,getSubIndex,parseIndex,iDim,parseIdx,isQuickSet,isQuickGet,\
+  transform
 import time
 np.seterr(divide='ignore', invalid='ignore', over='ignore')
 
@@ -44,8 +45,7 @@ class NetCDF2DGroup(object):
     Shape of master file (e.g. 2,2,1,1000)
   child :
     Shape of child file (e.g. 1,1000)
-  variablesSetup:
-    TODO:Change name "variablesSetup" to "variables"
+  variables:
     Pre-create dimension and variable array for child file 
     
   
@@ -198,6 +198,12 @@ class NetCDF2DGroup(object):
     if value is None:
       return data.reshape(dataShape)
 
+  def transform(self,vname,value,set=True):
+    attributes = self.variables[vname]
+    if self.parent.isTransform and "min" in attributes and "max" in attributes and attributes['type'] in ["uint8","uint16","uint32"]:
+      return transform(attributes,value,set)
+    return value
+  
   def __getitem__(self, idx):
     """
     Get data based on the query
@@ -205,18 +211,23 @@ class NetCDF2DGroup(object):
     vname,idx = self.__checkVariable(idx)
     attributes = self.variables[vname]
 
-    data=self.__subrun(vname,idx)
+    if isQuickGet(idx,self.ndata,self.master):
+      data=self._quickGet(vname,list(idx)[0])
+    else:
+      data=self.__subrun(vname,idx)
     
     if "calendar" in attributes:
       data=data.astype("datetime64[s]")
       # data=num2date(data,units=attributes["units"],calendar=attributes["calendar"])
     if attributes['type']=='str':
       data=chartostring(data.astype("S1"))
+    
+    data=self.transform(vname,data,set=False)
     return data  
     
   def __setitem__(self, idx,value):
     """
-    
+    Set data based on the query
     """
 
     vname,idx = self.__checkVariable(idx)
@@ -228,8 +239,61 @@ class NetCDF2DGroup(object):
     if attributes['type']=='str':
       nchar=attributes['dimensions'][1]
       value=stringtochar(np.array(value).astype("S{}".format(self.dimensions[nchar])))
+    
       
     value= checkValue(value,idx,self.shape)
-    self.__subrun(vname,idx,value=value)
-
+    value=self.transform(vname,value,set=True)
+  
+    if isQuickSet(idx,self.ndata,self.master,self.child):
+      self._quickSet(vname,self._getPartIndex(idx),value)
+    else:
+      self.__subrun(vname,idx,value=value)
+ 
+    
+  def _getPartIndex(self,idx):
+    return int(np.floor(list(idx)[0].start/self.child[0]))
+    
+    
+  def _quickSet(self,vname,partIndex,value):
+    localOnly = self.parent.localOnly
+    s3 = self.parent.s3
+    n=self.ndata
+  
+    parts=np.zeros(n,dtype="int")
+    parts[0]=partIndex
+    strpart = "_".join(parts.astype(str))
+    filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
+    if not os.path.exists(filepath):
+      _variable={}
+      _variable[vname]=self.variables[vname]
+      if localOnly:
+        createNetCDF(filepath,dimensions=self.dimensions,variables=_variable)  
+      else:
+        if s3.exists(filepath):s3.download(filepath)
+        else:createNetCDF(filepath,dimensions=self.dimensions,variables=_variable)  
+    
+    with Dataset(filepath, "r+") as src_file:
+      var = src_file.variables[vname]
+      var[:]=value
+    if not localOnly:
+      s3.upload(filepath)
+  
+  def _quickGet(self,vname,i):
+    localOnly = self.parent.localOnly
+    s3 = self.parent.s3
+    n=self.ndata
+    parts=np.zeros(n,dtype="int")
+    parts[0]=int(np.floor(i/self.child[0]))
+    index=int(i%self.child[0])
+    strpart = "_".join(parts.astype(str))
+    filepath = os.path.join(self.folderPath, "{}_{}_{}_{}.nc".format(self.parent.name, self.name, vname, strpart))
+    
+    if not os.path.exists(filepath):
+      if self.parent.localOnly:raise Exception("File does not exist. No data was assigned. {}".format(filepath))
+      if not self.parent.s3.exists(filepath):raise Exception("File does not exist. No data was assigned. {}".format(filepath))
+      self.parent.s3.download(filepath)
+      
+    with Dataset(filepath, "r") as src_file:
+        var = src_file.variables[vname]
+        return var[index]
   

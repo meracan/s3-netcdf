@@ -78,10 +78,31 @@ def test_NetCDF2D_4():
   np.testing.assert_array_equal(netcdf2d["spc","energy",0,0:20], np.squeeze(value2))
   np.testing.assert_array_equal(netcdf2d["spc","energy",0], np.squeeze(value2))
   
+  shape=netcdf2d.groups['s'].shape
+  child=netcdf2d.groups['s'].child
+  n=shape[0]
+  step=child[0]
+  
+  
+  for i in range(0,n,step):
+    j=np.minimum(n,i+step)
+    netcdf2d["s","a",i:j] = np.ones(child)
+  np.testing.assert_array_equal(netcdf2d["s","a",0], np.ones((262145)))
   
   
   
   netcdf2d.cache.delete()
 
+# def test_NetCDF2D_4_quick():
+  
+#   netcdf2d=NetCDF2D(Input)
+#   bedshape = netcdf2d.groups["node"].shape
+#   netcdf2d["s","a",0] = np.ones(list(bedshape)[0])
+  
+  
+  
+#   netcdf2d.cache.delete()
+
 if __name__ == "__main__":
   test_NetCDF2D_4()
+  # test_NetCDF2D_4_quick()

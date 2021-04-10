@@ -4,7 +4,8 @@ import numpy as np
 from netCDF4 import Dataset
 from s3netcdf.netcdf2d_func import createNetCDF,NetCDFSummary,\
   createVariables,getChildShape,getMasterShape,parseDescriptor,\
-  getIndices,getMasterIndices,getPartitions,parseIndex
+  getIndices,getMasterIndices,getPartitions,parseIndex,isQuickSet,isQuickGet,\
+  transform
 
 shape1 = [3, 7]
 shape2a = [8, 32768]  # 1MB
@@ -17,7 +18,9 @@ shape4c = [8, 8,8,513]  # >1MB
 shape5a = [16, 32768]  # 2MB
 shape5b = [16, 32769]  # >2MB
 shape6a = [4, 32768]  # 1MB,type=f8
-shape6b = [4, 32769]  # >1MB,type=f8  
+shape6b = [4, 32769]  # >1MB,type=f8
+shape7 = [6049,764300]
+
 
 def test_getChildShape():
   np.testing.assert_array_equal(getChildShape(shape1), shape1)
@@ -32,6 +35,7 @@ def test_getChildShape():
   np.testing.assert_array_equal(getChildShape(shape5b,ncSize=2), [8, 32769])
   np.testing.assert_array_equal(getChildShape(shape6a,dtype="f8"), shape6a)
   np.testing.assert_array_equal(getChildShape(shape6b,dtype="f8"), [2, 32769])
+  # np.testing.assert_array_equal(getChildShape(shape7,ncSize=10), [8, 32769])
   
   
 def test_getMasterShape():
@@ -183,7 +187,47 @@ def test_parseIndex():
   
   with pytest.raises(Exception) as excinfo1:parseIndex("a")
   assert str(excinfo1.value) == 'Format needs to be \"{int}\" or \":\" or \"{int}:{int}\" or \"[{int},{int}]\"'
+
+def test_quickSetGet():
+  # TODO
+  # isQuickSet
+  # isQuickGet
   
+  pass
+
+def test_transform():
+  # uint8
+  attributes={"type":"uint8","min":0,"max":25.5}
+  value=np.arange(0,25.5,0.1)
+  a=transform(attributes,value,set=True)
+  b=transform(attributes,a,set=False)
+  np.testing.assert_almost_equal(value,b)
+  
+  # Below minimum
+  value=np.arange(-1,0,0.1)
+  a=transform(attributes,value,set=True)
+  b=transform(attributes,a,set=False)
+  np.testing.assert_almost_equal(np.zeros(10),b)
+  
+  # Above maximum
+  value=np.arange(26,27,0.1)
+  a=transform(attributes,value,set=True)
+  b=transform(attributes,a,set=False)
+  np.testing.assert_almost_equal(np.zeros(10)+25.5,b)
+  
+  # uint16
+  attributes={"type":"uint16","min":0,"max":25.5}
+  value=np.arange(0,25.5,0.1)
+  a=transform(attributes,value,set=True)
+  b=transform(attributes,a,set=False)
+  np.testing.assert_almost_equal(value,b)
+  
+  # uint32
+  attributes={"type":"uint32","min":0,"max":25.5}
+  value=np.arange(0,25.5,0.1)
+  a=transform(attributes,value,set=True)
+  b=transform(attributes,a,set=False)
+  np.testing.assert_almost_equal(value,b)
   
 
 if __name__ == "__main__":
@@ -195,3 +239,4 @@ if __name__ == "__main__":
   test_getPartitions()
   test_createNetCDF()
   test_parseIndex()
+  test_transform()

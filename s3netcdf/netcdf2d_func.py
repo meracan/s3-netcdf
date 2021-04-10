@@ -1,9 +1,10 @@
 import os
 import sys
-from netCDF4 import Dataset
+from netCDF4 import Dataset,stringtochar,chartostring
 import numpy as np
 import time
 import json
+import copy
 
 def createNetCDF(filePath,folder=os.getcwd(),metadata={},dimensions={},variables={},groups={},ncSize=1.0):
   """
@@ -55,7 +56,7 @@ def createNetCDF(filePath,folder=os.getcwd(),metadata={},dimensions={},variables
       shapeArray=[]
       for dimension in group['dimensions']:
         if (dimension==name):raise Exception("group can't have the same name of a dimension")
-        if not dimension in src_file.dimensions:raise Exception("Dimension does not exist")
+        if not dimension in src_file.dimensions:raise Exception("Dimension {} does not exist".format(dimension))
         shapeArray.append(len(src_file.dimensions[dimension]))
       shapeArray = np.array(shapeArray,dtype="i4")
 
@@ -99,6 +100,7 @@ def createVariables(src_file,variables,groupDimensions=None):
   
   for name in variables:
     variable = variables[name]
+    
     if not 'type' in variable:raise Exception("Variable need a type")
     lsd = variable['least_significant_digit'] if 'least_significant_digit' in variable else None
       
@@ -114,10 +116,16 @@ def createVariables(src_file,variables,groupDimensions=None):
       zlib=True,
       least_significant_digit=lsd)
     if "units" in variable:_var.units = variable["units"]
+    if "min" in variable:_var.min = variable["min"]
+    if "max" in variable:_var.max = variable["max"]
     if "standard_name" in variable:_var.standard_name = variable["standard_name"]
     if "long_name" in variable:_var.long_name = variable["long_name"]
     if "calendar" in variable:_var.calendar = variable["calendar"]
-    if "data" in variable:_var[:]=variable['data']
+    
+    if "data" in variable:
+      if variable['type']=='str':
+        variable['data']=stringtochar(np.array(variable['data']).astype("S{}".format(16))) #TODO: Change 16 to nchar dimension
+      _var[:]=variable['data']
 
 
 
@@ -239,7 +247,25 @@ def readVariables(src):
     variables[id]=variable
   return variables
   
-  
+
+def getVariables(_meta):
+  """
+  TODO
+  """
+  meta=copy.deepcopy(_meta)
+  variables={}
+  for gname in meta['groups']:
+    group=meta['groups'][gname]
+    vars=group['variables']
+    del vars['shape']
+    del vars['master']
+    del vars['child']
+    for vname in vars:
+      variables[vname]=vars[vname]
+  return variables  
+
+
+
 
 def getChildShape(shape,dtype="f4",ncSize=1.0):
   """
@@ -277,7 +303,8 @@ def getChildShape(shape,dtype="f4",ncSize=1.0):
   itemSize = np.dtype(dtype).itemsize
   ncSize = ncSize * 1024.0**2 # 1024**2 = 1MB
   
-  items = 1
+  
+  items = 1.0
   fileShape = np.ones(len(shape), dtype=np.int)
   for i in range(len(shape) - 1, -1, -1):
     n = shape[i]
@@ -669,3 +696,52 @@ def parseIdx(value):
   if value is None:return slice(None,None,None)
   if isinstance(value,str):return parseIndex(value)
   return value
+  
+def isQuickSet(idx,n,master,child):
+  """
+  """
+  
+  lidx=list(idx)
+  if not np.all(master[1:n]==1):return False
+  if not len(lidx)==1: return False
+  item=lidx[0]
+  
+  if not isinstance(item,slice):return False
+  if not (item.stop-item.start)==child[0]: return False
+  partIndexStart=int(np.floor(item.start/child[0]))
+  partIndexStop=int(np.floor((item.stop-1)/child[0]))
+  
+  if partIndexStart!=partIndexStop: return False
+  
+  return True 
+  
+def isQuickGet(idx,n,master):
+  """
+  """
+  lidx=list(idx)
+  if not np.all(master[1:n]==1):return False
+  if not len(lidx)==1: return False
+  item=lidx[0]
+  if not isinstance(item,int):return False
+  # print("_isQuickGet=True")
+  return True  
+
+
+def transform(attributes,value,set=True):
+  """
+  """
+  type=attributes.get("type")
+  min=attributes.get("min")
+  max=attributes.get("max")
+  ftype=attributes.get("ftype","f8")
+  
+  maxVs={"uint8":255.0,"uint16":65535.0,"uint32":4294967295.0}
+  
+  if not type in maxVs:raise Exception("Not valid type. Needs to be uint8,uint16,uint32")
+  maxV=maxVs[type]
+  f=maxV/(max-min)
+  if set:
+    value=np.clip(value, min, max)
+    return np.rint((value-min)*f).astype(type)
+  else:
+    return (value.astype(ftype)/f)+min
