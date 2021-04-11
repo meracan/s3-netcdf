@@ -14,7 +14,7 @@
         }
       },
       "time":{"dimensions":["ntime"],"variables":{
-          "time":{"type":"f8", "units":"hours since 1970-01-01 00:00:00.0","calendar":"gregorian" ,"standard_name":"Datetime" ,"long_name":"Datetime"}
+          "time":{"type":"M", "units":"hours since 1970-01-01 00:00:00.0","calendar":"gregorian" ,"standard_name":"Datetime" ,"long_name":"Datetime"}
         }
       },
       "node":{"dimensions":["nnode"],"variables":{

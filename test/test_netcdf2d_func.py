@@ -2,10 +2,10 @@ import os
 import pytest
 import numpy as np
 from netCDF4 import Dataset
-from s3netcdf.netcdf2d_func import createNetCDF,NetCDFSummary,\
-  createVariables,getChildShape,getMasterShape,parseDescriptor,\
-  getIndices,getMasterIndices,getPartitions,parseIndex,isQuickSet,isQuickGet,\
-  transform
+from netcdf import NetCDF
+from s3netcdf.s3netcdf_func import createNetCDF,\
+  getChildShape,getMasterShape,parseDescriptor,\
+  getIndices,getMasterIndices,getPartitions,parseIndex,isQuickSet,isQuickGet
 
 shape1 = [3, 7]
 shape2a = [8, 32768]  # 1MB
@@ -152,28 +152,16 @@ def test_createNetCDF():
   )
   
   createNetCDF(filePath,folder=folder,metadata=metadata,dimensions=dimensions,variables=variables,ncSize=1.0)
-  nc=NetCDFSummary(filePath)
-  
-  np.testing.assert_array_equal(nc['metadata'],metadata)
-  np.testing.assert_array_equal(nc['dimensions'],dimensions)
-  np.testing.assert_array_equal(nc['variables'],variables)
+  with NetCDF(filePath,"r") as nc: 
+    np.testing.assert_array_equal(nc.obj['metadata'],metadata)
+    np.testing.assert_array_equal(nc.obj['dimensions'],dimensions)
+    np.testing.assert_array_equal(nc.obj['variables']['a'],{'dimensions': ['nnode'], 'type': 'f', 'least_significant_digit': 3, 'units': 'm', 'standard_name': '', 'long_name': '', 'ftype': 'f'})
   
   createNetCDF(filePath,folder=folder,metadata=metadata,dimensions=dimensions,groups=groups,ncSize=1.0)
-  nc=NetCDFSummary(filePath)
-  np.testing.assert_array_equal(nc['metadata'],metadata)
-  np.testing.assert_array_equal(nc['dimensions'],dimensions)
-  np.testing.assert_array_equal(nc['variables'],[])
-  
-  
-  dummyvariables=dict(
-    shape=dict(type="int32",dimensions=["nshape"]),
-    master=dict(type="int32",dimensions=["nmaster"]),
-    child=dict(type="int32",dimensions=["nchild"]),
-    u=dict(type="float32",dimensions=["ntime", "nnode"],units='m/s', standard_name='', long_name=''),
-    
-  )
-  
-  np.testing.assert_array_equal(nc['groups']["s"]['variables'],dummyvariables)
+  with NetCDF(filePath,"r") as nc:
+    np.testing.assert_array_equal(nc.obj['metadata'],metadata)
+    np.testing.assert_array_equal(nc.obj['dimensions'],dimensions)
+    np.testing.assert_array_equal(nc.obj['groups']["s"]['variables'],{'u': {'dimensions': ['ntime', 'nnode'], 'type': 'f', 'units': 'm/s', 'standard_name': '', 'long_name': '', 'ftype': 'f'}})
   
 def test_parseIndex():
   assert parseIndex("0")==0
@@ -188,46 +176,6 @@ def test_parseIndex():
   with pytest.raises(Exception) as excinfo1:parseIndex("a")
   assert str(excinfo1.value) == 'Format needs to be \"{int}\" or \":\" or \"{int}:{int}\" or \"[{int},{int}]\"'
 
-def test_quickSetGet():
-  # TODO
-  # isQuickSet
-  # isQuickGet
-  
-  pass
-
-def test_transform():
-  # uint8
-  attributes={"type":"uint8","min":0,"max":25.5}
-  value=np.arange(0,25.5,0.1)
-  a=transform(attributes,value,set=True)
-  b=transform(attributes,a,set=False)
-  np.testing.assert_almost_equal(value,b)
-  
-  # Below minimum
-  value=np.arange(-1,0,0.1)
-  a=transform(attributes,value,set=True)
-  b=transform(attributes,a,set=False)
-  np.testing.assert_almost_equal(np.zeros(10),b)
-  
-  # Above maximum
-  value=np.arange(26,27,0.1)
-  a=transform(attributes,value,set=True)
-  b=transform(attributes,a,set=False)
-  np.testing.assert_almost_equal(np.zeros(10)+25.5,b)
-  
-  # uint16
-  attributes={"type":"uint16","min":0,"max":25.5}
-  value=np.arange(0,25.5,0.1)
-  a=transform(attributes,value,set=True)
-  b=transform(attributes,a,set=False)
-  np.testing.assert_almost_equal(value,b)
-  
-  # uint32
-  attributes={"type":"uint32","min":0,"max":25.5}
-  value=np.arange(0,25.5,0.1)
-  a=transform(attributes,value,set=True)
-  b=transform(attributes,a,set=False)
-  np.testing.assert_almost_equal(value,b)
   
 
 if __name__ == "__main__":
@@ -239,4 +187,3 @@ if __name__ == "__main__":
   test_getPartitions()
   test_createNetCDF()
   test_parseIndex()
-  test_transform()

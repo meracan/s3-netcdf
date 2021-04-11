@@ -13,7 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/meracan/s3-netcdf",
     packages=["s3netcdf"],
-    install_requires=['numpy','netcdf4','boto3'],
+    install_requires=['numpy','netcdf','netcdf4','boto3'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

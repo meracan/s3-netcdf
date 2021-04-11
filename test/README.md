@@ -19,48 +19,48 @@ python3 test/test_netcdf2d1.py && python3 test/test_netcdf2d2.py && python3 test
 #### General Commands
 ```python
 # Get information inside the master file
-netcdf2d.info()
-netcdf2d.meta()
+s3netcdf.info()
+s3netcdf.meta()
 
 # Get group dimensional shape 
-netcdf2d.groups["{groupname}"].shape
+s3netcdf.groups["{groupname}"].shape
 
 # Get group dimensional partition shape
-netcdf2d.groups["{groupname}"].child
+s3netcdf.groups["{groupname}"].child
 
 # Get variable's attributes
-netcdf2d.groups["{groupname}"].attributes["{variablename}")
+s3netcdf.groups["{groupname}"].attributes["{variablename}")
 ```
 
 #### Caching commands
 ```python
 # List partition files locally
-netcdf2d.cache.getNCs()
+s3netcdf.cache.getNCs()
 
 # Clear/Delete all partition files locally
 # Warning!
-netcdf2d.cache.clearNCs()
+s3netcdf.cache.clearNCs()
 
 # Delete NetCDF locally
 # Warning!
 # Delete master file and partitions files
-netcdf2d.cache.delete()
+s3netcdf.cache.delete()
 ```
 
 
 #### S3 commands
 ```python
 # List master and partition files, including metedata
-netcdf2d.s3.list()
+s3netcdf.s3.list()
 
 # Clear/Delete all partition files in S3
 # Warning!
-netcdf2d.s3.clearNCs()
+s3netcdf.s3.clearNCs()
 
 # Delete NetCDF in S3
 # Warning!
 # Delete master file and partitions files
-netcdf2d.s3.delete()
+s3netcdf.s3.delete()
 
 ```
 

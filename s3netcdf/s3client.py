@@ -144,3 +144,21 @@ class S3Client(object):
     expiration=172800
     URL=self.s3.generate_presigned_url("get_object",Params={'Bucket': self.bucket,'Key': s3path}, ExpiresIn=expiration)
     return URL
+    
+  
+  def uploadedFile(self,gname,vname):
+    return os.path.join(self.parent.folder,"uploads","{}.{}.txt".format(gname,vname))
+  
+  def addUploadedFile(self,gname,vname):
+    filepath = self.uploadedFile(gname,vname)
+    folder=os.path.dirname(filepath)
+    if not os.path.exists(folder):
+      os.makedirs(folder,exist_ok=True)
+    with open(filepath, "w") as f:f.write("")
+    return self.upload(filepath)
+  
+  def removeUploadedFile(self,gname,vname):
+    return self.deleteFile(self.uploadedFile(gname,vname))
+    
+  def isUploaded(self,gname,vname):
+    return self.exists(self.uploadedFile(gname,vname))

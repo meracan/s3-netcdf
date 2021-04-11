@@ -1,6 +1,7 @@
 import os
 import sys
 from netCDF4 import Dataset,stringtochar,chartostring
+from netcdf import NetCDF
 import numpy as np
 import time
 import json
@@ -25,107 +26,150 @@ def createNetCDF(filePath,folder=os.getcwd(),metadata={},dimensions={},variables
   Only applicable for 1 layer of groups
   
   
-  """  
-  if not os.path.isdir(os.path.dirname(filePath)):
-    os.makedirs(os.path.dirname(filePath), exist_ok=True)
+  """
+  
+  NetCDF.create(filePath,metadata,dimensions,variables)
+  
+  with Dataset(filePath, "r+") as netcdf:
     
-  with Dataset(filePath, "w") as src_file:
-    # Write metadata
-    for key in metadata:
-      value=metadata[key]
-      if isinstance(value,dict):value=json.dumps(value)
-      setattr(src_file, key, value)
-    
-    # Write dimensions to NetCDF
-    for name in dimensions:
-      src_file.createDimension(name, dimensions[name])
-    
-    # Write variable without a group.  
-    createVariables(src_file,variables)
-    
-    # Create group
     for name in groups:
       group = groups[name]
       if not 'variables' in group:raise Exception("Group needs variables")
       if not 'dimensions' in group:raise Exception("Group needs dimensions")
+      dims=group['dimensions']
+      variables=group['variables']
       
-      src_group = src_file.createGroup(name)
-      groupPath = os.path.join(folder, name)
-      if not os.path.exists(groupPath): os.makedirs(groupPath)
-
-      shapeArray=[]
-      for dimension in group['dimensions']:
-        if (dimension==name):raise Exception("group can't have the same name of a dimension")
-        if not dimension in src_file.dimensions:raise Exception("Dimension {} does not exist".format(dimension))
-        shapeArray.append(len(src_file.dimensions[dimension]))
-      shapeArray = np.array(shapeArray,dtype="i4")
-
-      nshape = len(shapeArray)
-      src_group.createDimension("nshape", nshape)
-      src_group.createDimension("nmaster", nshape * 2)
-      src_group.createDimension("nchild", nshape)
-      shape = src_group.createVariable("shape", "i4", ("nshape",))
-      master = src_group.createVariable("master", "i4", ("nmaster",))
-      child = src_group.createVariable("child", "i4", ("nchild",))
-
-      shape[:]=shapeArray
-      master[:],child[:] = getMasterShape(shapeArray, return_childshape=True, ncSize=ncSize)
-      src_group.groupDimensions = group['dimensions']
+      # Add dimensions to variable
+      for vname in variables:
+        variables[vname]['dimensions']=dims
       
-      createVariables(src_group,group['variables'],group['dimensions'])
+      shape=[]
       
-
-def createVariables(src_file,variables,groupDimensions=None):
-  """
-  Create variables in a NetCDF file
+      for d in dims:
+        if (d==name):raise Exception("group can't have the same name of a dimension")
+        if not d in netcdf.dimensions:raise Exception("Dimension {} does not exist".format(d))
+        value=netcdf.dimensions[d].size
+        shape.append(value)
+        
+      shape = np.array(shape,dtype="i4")
+      master,child=getMasterShape(shape, return_childshape=True, ncSize=ncSize)
+      
+      group=netcdf.createGroup(name)
+      group=netcdf[name]
+      
+      cdims={}
+      for i,d in enumerate(dims):
+        cdims[d]=child[i]
+      
+      NetCDF._create(group,
+        {'cdims':cdims,'shape':shape,'master':master,'child':child},
+        {},
+        variables
+      )
   
-  Parameters
-  ----------
-  src_file: NetCDF.Dataset
-  variables:{object}, dict of objects
-    name:str 
-    type:str
-    dimensions:[str],list of str 
-    units:str,optional
-    standard_name:str,optional
-    long_name:str,optional
-    calendar:str,optional
-  groupDimensions: default dimensions for group, optional
+      
+      
   
-  Notes
-  ----------
-  groupDimensions takes priority over dimensions in variables
-  
-  """ 
-  
-  for name in variables:
-    variable = variables[name]
+  # if not os.path.isdir(os.path.dirname(filePath)):
+  #   os.makedirs(os.path.dirname(filePath), exist_ok=True)
     
-    if not 'type' in variable:raise Exception("Variable need a type")
-    lsd = variable['least_significant_digit'] if 'least_significant_digit' in variable else None
+  # with Dataset(filePath, "w") as src_file:
+  #   # Write metadata
+  #   for key in metadata:
+  #     value=metadata[key]
+  #     if isinstance(value,dict):value=json.dumps(value)
+  #     setattr(src_file, key, value)
+    
+  #   # Write dimensions to NetCDF
+  #   for name in dimensions:
+  #     src_file.createDimension(name, dimensions[name])
+    
+  #   # Write variable without a group.  
+  #   createVariables(src_file,variables)
+    
+  #   # Create group
+  #   for name in groups:
+  #     group = groups[name]
+  #     if not 'variables' in group:raise Exception("Group needs variables")
+  #     if not 'dimensions' in group:raise Exception("Group needs dimensions")
       
-    if groupDimensions is None:
-      if not 'dimensions' in variable:raise Exception("Variable need dimensions")
-      dimensions = variable['dimensions']
-    else:
-      dimensions=groupDimensions
+  #     src_group = src_file.createGroup(name)
+  #     groupPath = os.path.join(folder, name)
+  #     if not os.path.exists(groupPath): os.makedirs(groupPath)
+
+  #     shapeArray=[]
+  #     for dimension in group['dimensions']:
+  #       if (dimension==name):raise Exception("group can't have the same name of a dimension")
+  #       if not dimension in src_file.dimensions:raise Exception("Dimension {} does not exist".format(dimension))
+  #       shapeArray.append(len(src_file.dimensions[dimension]))
+  #     shapeArray = np.array(shapeArray,dtype="i4")
+
+  #     nshape = len(shapeArray)
+  #     src_group.createDimension("nshape", nshape)
+  #     src_group.createDimension("nmaster", nshape * 2)
+  #     src_group.createDimension("nchild", nshape)
+  #     shape = src_group.createVariable("shape", "i4", ("nshape",))
+  #     master = src_group.createVariable("master", "i4", ("nmaster",))
+  #     child = src_group.createVariable("child", "i4", ("nchild",))
+
+  #     shape[:]=shapeArray
+  #     master[:],child[:] = getMasterShape(shapeArray, return_childshape=True, ncSize=ncSize)
+  #     src_group.groupDimensions = group['dimensions']
+      
+  #     createVariables(src_group,group['variables'],group['dimensions'])
+      
+
+# def createVariables(src_file,variables,groupDimensions=None):
+#   """
+#   Create variables in a NetCDF file
+  
+#   Parameters
+#   ----------
+#   src_file: NetCDF.Dataset
+#   variables:{object}, dict of objects
+#     name:str 
+#     type:str
+#     dimensions:[str],list of str 
+#     units:str,optional
+#     standard_name:str,optional
+#     long_name:str,optional
+#     calendar:str,optional
+#   groupDimensions: default dimensions for group, optional
+  
+#   Notes
+#   ----------
+#   groupDimensions takes priority over dimensions in variables
+  
+#   """ 
+  
+#   for name in variables:
+#     variable = variables[name]
     
-    _var = src_file.createVariable(name,
-      variable["type"], 
-      dimensions,
-      zlib=True,
-      least_significant_digit=lsd)
-    if "units" in variable:_var.units = variable["units"]
-    if "min" in variable:_var.min = variable["min"]
-    if "max" in variable:_var.max = variable["max"]
-    if "standard_name" in variable:_var.standard_name = variable["standard_name"]
-    if "long_name" in variable:_var.long_name = variable["long_name"]
-    if "calendar" in variable:_var.calendar = variable["calendar"]
+#     if not 'type' in variable:raise Exception("Variable need a type")
+#     lsd = variable['least_significant_digit'] if 'least_significant_digit' in variable else None
+      
+#     if groupDimensions is None:
+#       if not 'dimensions' in variable:raise Exception("Variable need dimensions")
+#       dimensions = variable['dimensions']
+#     else:
+#       dimensions=groupDimensions
     
-    if "data" in variable:
-      if variable['type']=='str':
-        variable['data']=stringtochar(np.array(variable['data']).astype("S{}".format(16))) #TODO: Change 16 to nchar dimension
-      _var[:]=variable['data']
+#     _var = src_file.createVariable(name,
+#       variable["type"], 
+#       dimensions,
+#       zlib=True,
+#       least_significant_digit=lsd)
+#     if "units" in variable:_var.units = variable["units"]
+#     if "min" in variable:_var.min = variable["min"]
+#     if "max" in variable:_var.max = variable["max"]
+#     if "standard_name" in variable:_var.standard_name = variable["standard_name"]
+#     if "long_name" in variable:_var.long_name = variable["long_name"]
+#     if "calendar" in variable:_var.calendar = variable["calendar"]
+    
+#     if "data" in variable:
+#       if variable['type']=='str':
+#         variable['data']=stringtochar(np.array(variable['data']).astype("S{}".format(16))) #TODO: Change 16 to nchar dimension
+#       _var[:]=variable['data']
 
 
 
@@ -152,117 +196,143 @@ def is_json(myjson):
     return False
   return True
   
-def NetCDFSummary(filePath):
-  '''
-  NetCDFSummary outputs metadata,dimensions, variables.
+# def NetCDFSummary(filePath):
+#   '''
+#   NetCDFSummary outputs metadata,dimensions, variables.
   
-  Parameters
-  ----------
-  filePath:Path
+#   Parameters
+#   ----------
+#   filePath:Path
 
-  Returns
-  -------
-  dict : {metadata,dimensions,variables,groups}
-  Notes
-  -----
-  Only applicable for 1 layer of groups
-  Each group contains variables and dimensions
-  '''
+#   Returns
+#   -------
+#   dict : {metadata,dimensions,variables,groups}
+#   Notes
+#   -----
+#   Only applicable for 1 layer of groups
+#   Each group contains variables and dimensions
+#   '''
   
-  with Dataset(filePath, "r") as src_file:
-    metadata={}
-    for id in src_file.ncattrs():
-      value=src_file.getncattr(id)
-      if is_json(value):value=json.loads(value)
-      metadata[id]=value
+#   with Dataset(filePath, "r") as src_file:
+#     metadata={}
+#     for id in src_file.ncattrs():
+#       value=src_file.getncattr(id)
+#       if is_json(value):value=json.loads(value)
+#       metadata[id]=value
     
-    dimensions={}
-    for id in src_file.dimensions:
-      dimensions[id]=len(src_file.dimensions[id])
+#     dimensions={}
+#     for id in src_file.dimensions:
+#       dimensions[id]=len(src_file.dimensions[id])
     
-    variables =readVariables(src_file)
+#     variables =readVariables(src_file)
     
-    groupsByVariable={}
-    groups={}
-    variablesByDimension={}
-    meshMeta={}
-    for id in list(src_file.groups):
-      group = {}
-      group['variables']=readVariables(src_file.groups[id])
-      groupD=src_file.groups[id].groupDimensions
-      if not isinstance(groupD,list):
-        variablesByDimension[groupD]=list(group['variables'].keys())[3:] # [3:] is to remove shape,master and child
-        groupD=[groupD]
+#     groupsByVariable={}
+#     groups={}
+#     variablesByDimension={}
+#     meshMeta={}
+#     for id in list(src_file.groups):
+#       group = {}
+#       group['variables']=readVariables(src_file.groups[id])
+#       groupD=src_file.groups[id].cdims
+#       if not isinstance(groupD,list):
+#         variablesByDimension[groupD]=list(group['variables'].keys())[3:] # [3:] is to remove shape,master and child
+#         groupD=[groupD]
       
-      group['dimensions']=groupD
-      groups[id]=group
+#       group['dimensions']=groupD
+#       groups[id]=group
       
-      # Save variables in vars
-      for key in group['variables'].keys():
-        if key in groupsByVariable:groupsByVariable[key].append(id)
-        else:groupsByVariable[key]=[id]
+#       # Save variables in vars
+#       for key in group['variables'].keys():
+#         if key in groupsByVariable:groupsByVariable[key].append(id)
+#         else:groupsByVariable[key]=[id]
       
-      # Get mesh information
-      if groupD[0] in ["nnode","nnodes","nelem"]:
-        for key in group['variables'].keys():
-          if key.lower() in ['x','lng','lon','longitude']:
-            meshMeta['x']=key
-          elif key.lower() in ['y','lat','latitude']:
-            meshMeta['y']=key
-          elif key.lower() in ['elem','connectivity','ikle']:
-            meshMeta['elem']=key
+#       # Get mesh information
+#       if groupD[0] in ["nnode","nnodes","nelem"]:
+#         for key in group['variables'].keys():
+#           if key.lower() in ['x','lng','lon','longitude']:
+#             meshMeta['x']=key
+#           elif key.lower() in ['y','lat','latitude']:
+#             meshMeta['y']=key
+#           elif key.lower() in ['elem','connectivity','ikle']:
+#             meshMeta['elem']=key
     
-    return json.loads(json.dumps(dict(
-      metadata=metadata,
-      dimensions=dimensions,
-      variables=variables,
-      groups=groups,
-      groupsByVariable=groupsByVariable,
-      variablesByDimension=variablesByDimension,
-      meshMeta=meshMeta
-      ),cls=NpEncoder))
+#     return json.loads(json.dumps(dict(
+#       metadata=metadata,
+#       dimensions=dimensions,
+#       variables=variables,
+#       groups=groups,
+#       groupsByVariable=groupsByVariable,
+#       variablesByDimension=variablesByDimension,
+#       meshMeta=meshMeta
+#       ),cls=NpEncoder))
 
-
-def readVariables(src):
-  '''
-  Reads and store NetCDF variables (type,dimensions,metadata) into dict.
+# def _summary(netcdf):
+#   metadata={}
+#   for id in netcdf.ncattrs():
+#     value=netcdf.getncattr(id)
+#     if is_json(value):value=json.loads(value)
+#     metadata[id]=value
   
-  Parameters
-  ----------
-  src:netCDF4 object
-
-  Returns
-  -------
-  dict : {id:{type,dimensions,...metadata}}
-  '''
-  variables={}
-  for id in src.variables:
-    variable = {}
-    dtype=np.dtype(src.variables[id].dtype).name
-    variable['type'] = dtype
-    variable['dimensions'] = list(src.variables[id].dimensions)
+#   dimensions={}
+#   for id in netcdf.dimensions:
+#     dimensions[id]=netcdf.dimensions[id].size
+  
+#   variables={}
+#   for vname in netcdf.variables:
+#     variable = {}
+#     variable['type'] = netcdf.variables[vname].dtype.char
+#     variable['dimensions'] = list(netcdf.variables[vname].dimensions)
     
-    for ncattr in src.variables[id].ncattrs():
-      variable[ncattr]=src.variables[id].getncattr(ncattr)
-    variables[id]=variable
-  return variables
+#     for ncattr in netcdf.variables[vname].ncattrs():
+#       variable[ncattr]=netcdf.variables[vname].getncattr(ncattr)
+#     variables[vname]=variable
+#   return variables
+  
+  
+#   # variables =readVariables(src_file)
   
 
-def getVariables(_meta):
-  """
-  TODO
-  """
-  meta=copy.deepcopy(_meta)
-  variables={}
-  for gname in meta['groups']:
-    group=meta['groups'][gname]
-    vars=group['variables']
-    del vars['shape']
-    del vars['master']
-    del vars['child']
-    for vname in vars:
-      variables[vname]=vars[vname]
-  return variables  
+
+# def readVariables(src):
+#   '''
+#   Reads and store NetCDF variables (type,dimensions,metadata) into dict.
+  
+#   Parameters
+#   ----------
+#   src:netCDF4 object
+
+#   Returns
+#   -------
+#   dict : {id:{type,dimensions,...metadata}}
+#   '''
+#   variables={}
+#   for id in src.variables:
+#     variable = {}
+#     dtype=np.dtype(src.variables[id].dtype).name
+#     variable['type'] = dtype
+#     variable['dimensions'] = list(src.variables[id].dimensions)
+    
+#     for ncattr in src.variables[id].ncattrs():
+#       variable[ncattr]=src.variables[id].getncattr(ncattr)
+#     variables[id]=variable
+#   return variables
+  
+
+# def getVariables(_meta):
+#   """
+#   TODO
+#   """
+#   meta=copy.deepcopy(_meta)
+#   variables={}
+#   for gname in meta['groups']:
+#     group=meta['groups'][gname]
+#     vars=group['variables']
+#     del vars['shape']
+#     del vars['master']
+#     del vars['child']
+#     for vname in vars:
+#       variables[vname]=vars[vname]
+#   return variables  
 
 
 
@@ -613,16 +683,23 @@ def getItemNetCDF(var,d,ipart,idata):
   array,convert back to netcdf if necessary
   """
   tup = (0,*ipart.T)[1:]
+  
+  if var.attributes['type']=="S":var.isChar=True
+  
   all=var[:]
   _d=all[tup]
   if _d.dtype.name!='object':d[idata]=np.squeeze(_d)
   else:d[idata]=_d
+  
   return d
 
 def setItemNetCDF(var,d,ipart,idata):
   """ See above
   """
   tup = (0,*ipart.T)[1:]
+
+  if var.attributes['type']=="S":var.isChar=True
+    
   all=var[:]
   all[tup]=d[idata]
   var[:]=all
@@ -727,21 +804,21 @@ def isQuickGet(idx,n,master):
   return True  
 
 
-def transform(attributes,value,set=True):
-  """
-  """
-  type=attributes.get("type")
-  min=attributes.get("min")
-  max=attributes.get("max")
-  ftype=attributes.get("ftype","f8")
+# def transform(attributes,value,set=True):
+#   """
+#   """
+#   type=attributes.get("type")
+#   min=attributes.get("min")
+#   max=attributes.get("max")
+#   ftype=attributes.get("ftype","f8")
   
-  maxVs={"uint8":255.0,"uint16":65535.0,"uint32":4294967295.0}
+#   maxVs={"uint8":255.0,"uint16":65535.0,"uint32":4294967295.0}
   
-  if not type in maxVs:raise Exception("Not valid type. Needs to be uint8,uint16,uint32")
-  maxV=maxVs[type]
-  f=maxV/(max-min)
-  if set:
-    value=np.clip(value, min, max)
-    return np.rint((value-min)*f).astype(type)
-  else:
-    return (value.astype(ftype)/f)+min
+#   if not type in maxVs:raise Exception("Not valid type. Needs to be uint8,uint16,uint32")
+#   maxV=maxVs[type]
+#   f=maxV/(max-min)
+#   if set:
+#     value=np.clip(value, min, max)
+#     return np.rint((value-min)*f).astype(type)
+#   else:
+#     return (value.astype(ftype)/f)+min

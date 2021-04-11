@@ -1,7 +1,8 @@
 import shutil
+import os
 import pytest
 import numpy as np
-from s3netcdf import NetCDF2D
+from s3netcdf import S3NetCDF
 from datetime import datetime, timedelta
 import time
 
@@ -18,7 +19,7 @@ Input = dict(
     dimensions = {"nnode":1000000,"ntime":2},
     groups={
       "time":{"dimensions":["ntime"],"variables":{
-          "time":{"type":"f8", "units":"hours since 1970-01-01 00:00:00.0","calendar":"gregorian" ,"standard_name":"Datetime" ,"long_name":"Datetime"}
+          "time":{"type":"M", "standard_name":"Datetime" ,"long_name":"Datetime"}
         }
       },
       "node":{"dimensions":["nnode"],"variables":{
@@ -63,66 +64,65 @@ def test_NetCDF2D_1():
   ----------
   """
   # 1. Create Master file and check metadata
-  netcdf2d=NetCDF2D(Input)
-  info = netcdf2d.info()
-  assert info['metadata']['title']==Input['nca']['metadata']['title']
-
+  
+  s3netcdf=S3NetCDF(Input)
+  assert s3netcdf.obj['metadata']['title']==Input['nca']['metadata']['title']
+  
   # 2. Write to partition files
-  timeshape = netcdf2d.groups["time"].shape
+  timeshape = s3netcdf["time"].shape
   # timevalue = [datetime(2001,3,1)+n*timedelta(hours=1) for n in range(np.prod(timeshape))]
   timevalue=(np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')).astype("datetime64[s]")
+  s3netcdf["time","time"] = timevalue
+  np.testing.assert_array_equal(s3netcdf["time","time"], timevalue)
   
-  netcdf2d["time","time"] = timevalue
-  np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
-  
-  bedshape = netcdf2d.groups["node"].shape
+  bedshape = s3netcdf["node"].shape
   bedvalue = np.arange(np.prod(bedshape)).reshape(bedshape)
-  netcdf2d["node","bed"] = bedvalue
-  np.testing.assert_array_equal(netcdf2d["node","bed"], bedvalue)
+  s3netcdf["node","bed"] = bedvalue
+  np.testing.assert_array_equal(s3netcdf["node","bed"], bedvalue)
   
-  sashape = netcdf2d.groups["s"].shape
+  sashape = s3netcdf["s"].shape
   savalue = np.arange(np.prod(sashape)).reshape(sashape)
-  netcdf2d["s","a"] = savalue
-  np.testing.assert_array_equal(netcdf2d["s","a"], savalue)
+  s3netcdf["s","a"] = savalue
+  np.testing.assert_array_equal(s3netcdf["s","a"], savalue)
   
-  netcdf2d["s","a",0,100:200] = 0.0
-  np.testing.assert_array_equal(netcdf2d["s","a",0,100:200], np.zeros((1,100)))
+  s3netcdf["s","a",0,100:200] = 0.0
+  np.testing.assert_array_equal(s3netcdf["s","a",0,100:200], np.zeros((1,100)))
   
   # 3. Upload and delete cache files
-  netcdf2d.cache.uploadNCA()
-  netcdf2d.cache.uploadNC()
-  netcdf2d.cache.delete()
+  s3netcdf.cache.uploadNCA()
+  s3netcdf.cache.uploadNC()
+  s3netcdf.cache.delete()
   
-  netcdf2d.setlocalOnly(False)
+  s3netcdf.setlocalOnly(False)
   # 4. Download automatically from s3 and check values
   tvalue = np.arange(np.prod(sashape)).reshape(sashape)
   tvalue[0,100:200]= 0.0
-  np.testing.assert_array_equal(netcdf2d["s","a"], tvalue)
+  np.testing.assert_array_equal(s3netcdf["s","a"], tvalue)
   
   # 5. Delete all
-  netcdf2d.cache.delete()
-  netcdf2d.s3.delete()
+  s3netcdf.cache.delete()
+  s3netcdf.s3.delete()
 
 
 def test_NetCDF2D_1b():
   # 6. Part2 cache files and upload to s3 automatically
   Input['localOnly']=False
-  netcdf2d=NetCDF2D(Input)
+  s3netcdf=S3NetCDF(Input)
   
   # 7. Write to partition files and upload to s3
-  sashape = netcdf2d.groups["s"].shape
+  sashape = s3netcdf.groups["s"].shape
   
   savalue = np.arange(np.prod(sashape)).reshape(sashape)
-  netcdf2d["s","a"] = savalue
-  np.testing.assert_array_equal(netcdf2d["s","a"], savalue)
+  s3netcdf["s","a"] = savalue
+  np.testing.assert_array_equal(s3netcdf["s","a"], savalue)
   
   # 8. Check auto-delete of cache files (exceeding cacheSize)
   #Should delete 3 files
-  assert len(netcdf2d.cache.getNCs())==5
+  assert len(s3netcdf.cache.getNCs())==0
   
   # 9. Delete all
-  netcdf2d.cache.delete()
-  netcdf2d.s3.delete()
+  s3netcdf.cache.delete()
+  s3netcdf.s3.delete()
   
 
 if __name__ == "__main__":

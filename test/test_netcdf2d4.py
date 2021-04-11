@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from s3netcdf import NetCDF2D
+from s3netcdf import S3NetCDF
 from datetime import datetime, timedelta
 
 Input = dict(
@@ -30,7 +30,7 @@ Input = dict(
         elem=dict(type="i4", units="" ,standard_name="" ,long_name=""),
       )),
       time=dict(dimensions=["ntime"],variables=dict(
-        time=dict(type="f8",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
+        time=dict(type="M",units="hours since 1970-01-01 00:00:00.0" ,calendar="gregorian" ,standard_name="" ,long_name=""),
         )),
       node=dict(dimensions=["nnode"],variables=dict(
         bed=dict(type="f4",units="m" ,standard_name="" ,long_name=""),
@@ -51,58 +51,48 @@ def test_NetCDF2D_4():
   Advanced testing to test index assignment
   ----------
   """
-  netcdf2d=NetCDF2D(Input)
-  elemshape = netcdf2d.groups["s"].shape
+  s3netcdf=S3NetCDF(Input)
+  elemshape = s3netcdf.groups["s"].shape
   
   value = np.arange(np.prod(elemshape)).reshape(elemshape)
   
   
-  netcdf2d["s","a",0] = value[0]
-  np.testing.assert_array_equal(netcdf2d["s","a",0], value[0])
+  s3netcdf["s","a",0] = value[0]
+  np.testing.assert_array_equal(s3netcdf["s","a",0], value[0])
   
-  netcdf2d["s","a",50] = value[50]
-  np.testing.assert_array_equal(netcdf2d["s","a",50], value[50])
+  s3netcdf["s","a",50] = value[50]
+  np.testing.assert_array_equal(s3netcdf["s","a",50], value[50])
   
-  netcdf2d["s","a",10:40] = value[10:40]
-  np.testing.assert_array_equal(netcdf2d["s","a",10:40], value[10:40])
+  s3netcdf["s","a",10:40] = value[10:40]
+  np.testing.assert_array_equal(s3netcdf["s","a",10:40], value[10:40])
   
-  netcdf2d["s","a",100:101] = value[100:101]
-  np.testing.assert_array_equal(netcdf2d["s","a",100:101],np.squeeze(value[100:101]))  
+  s3netcdf["s","a",100:101] = value[100:101]
+  np.testing.assert_array_equal(s3netcdf["s","a",100:101],np.squeeze(value[100:101]))  
 
-  netcdf2d["s","a"] = value
-  np.testing.assert_array_equal(netcdf2d["s","a"], value)
+  s3netcdf["s","a"] = value
+  np.testing.assert_array_equal(s3netcdf["s","a"], value)
   
   value2 = np.arange(20*110*33*36).reshape((1,20,110,33,36))
   
-  netcdf2d["spc","energy",0,:] = value2
-  np.testing.assert_array_equal(netcdf2d["spc","energy",0,0:20], np.squeeze(value2))
-  np.testing.assert_array_equal(netcdf2d["spc","energy",0], np.squeeze(value2))
+  s3netcdf["spc","energy",0,:] = value2
+  np.testing.assert_array_equal(s3netcdf["spc","energy",0,0:20], np.squeeze(value2))
+  np.testing.assert_array_equal(s3netcdf["spc","energy",0], np.squeeze(value2))
   
-  shape=netcdf2d.groups['s'].shape
-  child=netcdf2d.groups['s'].child
+  shape=s3netcdf.groups['s'].shape
+  child=s3netcdf.groups['s'].child
   n=shape[0]
   step=child[0]
   
   
   for i in range(0,n,step):
     j=np.minimum(n,i+step)
-    netcdf2d["s","a",i:j] = np.ones(child)
-  np.testing.assert_array_equal(netcdf2d["s","a",0], np.ones((262145)))
+    s3netcdf["s","a",i:j] = np.ones(child)
+  np.testing.assert_array_equal(s3netcdf["s","a",0], np.ones((262145)))
   
   
   
-  netcdf2d.cache.delete()
+  s3netcdf.cache.delete()
 
-# def test_NetCDF2D_4_quick():
-  
-#   netcdf2d=NetCDF2D(Input)
-#   bedshape = netcdf2d.groups["node"].shape
-#   netcdf2d["s","a",0] = np.ones(list(bedshape)[0])
-  
-  
-  
-#   netcdf2d.cache.delete()
 
 if __name__ == "__main__":
   test_NetCDF2D_4()
-  # test_NetCDF2D_4_quick()

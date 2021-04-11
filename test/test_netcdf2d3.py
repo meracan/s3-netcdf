@@ -2,7 +2,7 @@ import pytest
 import os
 import json
 import numpy as np
-from s3netcdf import NetCDF2D
+from s3netcdf import S3NetCDF
 from datetime import datetime, timedelta
 
 def test_NetCDF2D_3():
@@ -10,20 +10,19 @@ def test_NetCDF2D_3():
   Input = json.load(json_file)
   json_file.close()
   
-  netcdf2d=NetCDF2D(Input)
-  info = netcdf2d.info()
-  assert info['metadata']['title']==Input['nca']['metadata']['title']
+  s3netcdf=S3NetCDF(Input)
+  assert s3netcdf.obj['metadata']['title']==Input['nca']['metadata']['title']
 
   
-  timeshape = netcdf2d.groups["time"].shape
+  timeshape = s3netcdf.groups["time"].shape
   timevalue=np.datetime64(datetime(2001,3,1))+np.arange(np.prod(timeshape))*np.timedelta64(1, 'h')
-  netcdf2d["time","time"] = timevalue.astype("datetime64[s]")
-  np.testing.assert_array_equal(netcdf2d["time","time"], timevalue)
+  s3netcdf["time","time"] = timevalue.astype("datetime64[s]")
+  np.testing.assert_array_equal(s3netcdf["time","time"], timevalue)
   
   json_file =  open(os.path.join(os.path.dirname(__file__),'test3b.json'))
   Input2 = json.load(json_file)
   json_file.close()
-  net=NetCDF2D(Input2)
+  net=S3NetCDF(Input2)
   np.testing.assert_array_equal(net["time","time"], timevalue)
   
   net.cache.delete()
