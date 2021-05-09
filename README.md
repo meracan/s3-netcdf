@@ -92,8 +92,8 @@ Instead of using python indexing method, the query function can be used with an 
 ```python
 from s3netcdf import NetCDF2D 
 with S3NetCDF(Input) as s3netcdf:
-  print(netcdf2d.query({"group":"nodes","variable":"bed"})) # <--- hard code group and variable
-  print(netcdf2d.query({"variable":"bed"}))                 # <--- automatically find the variable. If there's multiple variables with the same name in different groups, it will take the smallest smallest/fisrt variable.
+  print(s3netcdf.query({"group":"nodes","variable":"bed"})) # <--- hard code group and variable
+  print(s3netcdf.query({"variable":"bed"}))                 # <--- automatically find the variable. If there's multiple variables with the same name in different groups, it will take the smallest smallest/fisrt variable.
 ```
 
 ### License
