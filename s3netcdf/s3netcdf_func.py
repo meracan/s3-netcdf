@@ -31,7 +31,6 @@ def createNetCDF(filePath,folder=os.getcwd(),metadata={},dimensions={},variables
   NetCDF.create(filePath,metadata,dimensions,variables)
   
   with Dataset(filePath, "r+") as netcdf:
-    
     for name in groups:
       group = groups[name]
       if not 'variables' in group:raise Exception("Group needs variables")
@@ -60,9 +59,8 @@ def createNetCDF(filePath,folder=os.getcwd(),metadata={},dimensions={},variables
       cdims={}
       for i,d in enumerate(dims):
         cdims[d]=child[i]
-      
       NetCDF._create(group,
-        {'cdims':cdims,'shape':shape,'master':master,'child':child},
+        {'cdims':cdims,'shape':shape,'master':master,'child':child,'dims':dims},
         {},
         variables
       )
@@ -764,9 +762,12 @@ def parseObj(obj,dimensions):
     newobject={}
     newobject['variable']=obj['variable']
     newobject['group']=obj.get('group',None)
+    newobject['dims']=[*obj.get('dims',[])]
     for dim in dimensions:
       idim=iDim(dim)
       newobject[idim]=obj.get(idim,None)
+      if not newobject[idim] is None:
+        newobject['dims']=[*newobject['dims'],dim]  
     return newobject
 
 def parseIdx(value):
@@ -789,13 +790,35 @@ def isQuickSet(idx,n,master,child):
   partIndexStop=int(np.floor((item.stop-1)/child[0]))
   
   if partIndexStart!=partIndexStop: return False
-  
   return True 
+  
+# def isQuickSets(idx,n,master,child):
+#   """
+#   """
+  
+#   lidx=list(idx)
+#   if not np.all(master[1:n]==1):return False
+#   if not len(lidx)==1: return False
+#   item=lidx[0]
+  
+#   if not isinstance(item,slice):return False
+#   if not (item.stop-item.start)==child[0]: return False
+#   partIndexStart=int(np.floor(item.start/child[0]))
+#   partIndexStop=int(np.floor((item.stop-1)/child[0]))
+  
+  
+  
+  
+#   if partIndexStart!=partIndexStop: return False
+#   return True 
+  
   
 def isQuickGet(idx,n,master):
   """
   """
   lidx=list(idx)
+  
+  # if len(master[1:n])==0:return True
   if not np.all(master[1:n]==1):return False
   if not len(lidx)==1: return False
   item=lidx[0]

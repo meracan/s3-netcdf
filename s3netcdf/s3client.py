@@ -31,11 +31,6 @@ class S3Client(object):
     self.s3prefix=parent.s3prefix
     self.parent = parent
     self.bucket = parent.bucket
-    
-    if(parent.dynomodb):
-      dynamodb= boto3.resource('dynamodb')
-      self.table = dynamodb.Table(parent.dynomodb)
-    
   
   def _gets3path(self,filepath):
     s3path = os.path.relpath(filepath,self.parent.cacheLocation)
@@ -121,23 +116,24 @@ class S3Client(object):
   def upload(self,filepath, ExtraArgs={}):
     bucket = self.bucket
     s3path = self._gets3path(filepath)
-    if self.parent.storageClass is not None:
-      ExtraArgs['StorageClass']=self.parent.storageClass
     # self.s3.upload_file(filepath, bucket, s3path)
     
     self.loop(lambda:self.s3.upload_file(filepath, bucket, s3path,ExtraArgs))
 
-  def insert(self,filepath,projectId=""):
-    s3path = self._gets3path(filepath)
+  def insert(self):
+    
     timestamp = int(time.time()*1000)
+    dynamodb= boto3.resource('dynamodb')
     item = {
-      'id': s3path,
-      'name':s3path,
-      'projectId': projectId,
+      'id': self.parent.name,
+      'name':self.parent.name,
+      's3-prefix':self.s3prefix or "",
+      'bucket':self.bucket,
       'createdAt': timestamp,
       'updatedAt': timestamp,
     }
-    self.table.put_item(Item=item)
+    table = dynamodb.Table(self.parent.dynamodb)
+    table.put_item(Item=item)
 
   def generate_presigned_url(self,filepath):
     s3path = self._gets3cachepath(filepath)

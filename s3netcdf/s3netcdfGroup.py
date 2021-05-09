@@ -48,21 +48,22 @@ class S3NetCDFGroup(object):
     
   
   """
-  def __init__(self, parent, src_file, name):
+  def __init__(self, parent, name):
     self.parent = parent
-    self.src_group = src_group = src_file[name]
+    self.src_group = src_group = parent.nca[name]
     self.metadata=metadata=src_group.metadata
     self.folderPath = os.path.join(parent.folder, name)
-    
     self.name = name
     self.shape = list(np.array(metadata['shape'],ndmin=1))
     self.master = list(np.array(metadata['master'],ndmin=1))
     self.child = list(np.array(metadata['child'],ndmin=1))
+    self.dimensions = list(np.array(metadata['dims'],ndmin=1))
     self.ndata = len(self.shape)
     self.nmaster = len(self.master)
     self.nchild = len(self.child)
     self.childDimensions=metadata['cdims']
     self.variables = src_group.variables
+    
     
   def __checkVariable(self,idx):
     """
@@ -88,8 +89,19 @@ class S3NetCDFGroup(object):
     dimensions=variable['dimensions']
     
     values=[parseIdx(obj.get(iDim(dimension),None)) for dimension in dimensions] # Remove n from the dimension name (e.g. ntime=>time). It will look for time in the obj
-    
+    for i in range(self.ndata):
+      value=values[i]
+      if isinstance(value,int):
+        if value is not None and value<0:raise Exception("{} needs to be equal or above 0".format(iDim(dimensions[i])))
+        if value is not None and value>self.shape[i]:raise Exception("{} needs to be below {}".format(iDim(dimensions[i]),self.shape[i]))
+      elif isinstance(value,slice):
+        if value.start is not None and value.start<0:raise Exception("{} needs to be equal or above 0".format(iDim(dimensions[i])))
+        if value.stop is not None and value.stop<0:raise Exception("{} needs to be equal or above 0".format(iDim(dimensions[i])))
+        if value.start is not None and value.start>self.shape[i]:raise Exception("{} needs to be below {}".format(iDim(dimensions[i]),self.shape[i]))
+        if value.stop is not None and value.stop>self.shape[i]:raise Exception("{} needs to be below {}".format(iDim(dimensions[i]),self.shape[i]))
+      
     idx=tuple(values)
+    
     
     indices = getIndices(idx,shape)
     
@@ -137,7 +149,7 @@ class S3NetCDFGroup(object):
         d=_data.flatten()
         filepath=self._getFile(vname,part)
         with NetCDF(filepath, "r") as netcdf:d=getItemNetCDF(netcdf[vname],d,ipart,idata)
-        if not self.parent.localOnly:os.remove(filepath)
+        if not self.parent.localOnly and self.parent.autoRemove:os.remove(filepath)
         _data=d.reshape(_data.shape)
       
       # SET
@@ -146,7 +158,7 @@ class S3NetCDFGroup(object):
         with NetCDF(filepath, "r+") as netcdf:setItemNetCDF(netcdf[vname],_value,ipart,idata)
         if not self.parent.localOnly:
           self.parent.s3.upload(filepath)
-          os.remove(filepath)
+          if self.parent.autoRemove:os.remove(filepath)
     return _data
       
   def __subrun(self,vname,idx,value=None):
@@ -229,10 +241,20 @@ class S3NetCDFGroup(object):
     if not self.parent.localOnly:self.parent.s3.upload(filepath)
   
   def _quickGet(self,vname,i):
+    print("here",vname,i)
     parts=np.zeros(self.ndata,dtype="int")
     parts[0]=int(np.floor(i/self.child[0]))
     index=int(i%self.child[0])
     filepath=self._getFile(vname,parts)
-    with NetCDF(filepath, "r") as netcdf:var = netcdf[vname]
-    return var[index]
+    with NetCDF(filepath, "r") as netcdf:var = netcdf[vname][index]
+    return var
+    
+    # if isinstance(i,int):
+    # elif isinstance(i,slice):
+    #   parts[0]=0
+    #   filepath=self._getFile(vname,parts)
+    #   with NetCDF(filepath, "r") as netcdf:var = netcdf[vname][i]
+      
+    #   return var
+      
   

@@ -47,8 +47,7 @@ class S3NetCDF(object):
   folder :path
   localOnly:bool
   bucket:str
-  storageClass:str
-    STANDARD,STANDARD_IA,ONEZONE_IA
+
   
   ncPath : path
     File contains nodes, connectivity table and static variables 
@@ -58,65 +57,64 @@ class S3NetCDF(object):
     Contains information on different groups or folders (i.e "s","t")
     Each group contains different variables but with the same dimensions
   """  
-  def __init__(self, _obj):
-    obj = copy.deepcopy(_obj)
-    self.name = name = obj.get("name",None)
-    self.localOnly = localOnly = obj.get("localOnly",True)
-    self.bucket = bucket = obj.get("bucket",None)
-    self.storageClass=obj.get("storageClass",None)
-    self.dynomodb = dynomodb = obj.get("dynomodb",None)
-    self.projectId= obj.get("projectId","")
-    self.s3prefix=obj.get("s3prefix",None)
-    self.squeeze=obj.pop("squeeze",False)
-    self.cacheLocation = cacheLocation = obj.get("cacheLocation",os.getcwd)
-    self.apiCacheLocation=obj.get("apiCacheLocation",os.getcwd)
-    self.folder = folder = os.path.join(cacheLocation, name)
-    self.maxPartitions= obj.pop("maxPartitions",10)
-    self.ncSize = obj.pop("ncSize",10)
-    self.s3 = s3 = S3Client(self,obj.pop("credentials",{}))
-    self.cacheSize = obj.pop("cacheSize",10) * 1024**2
-    self.cache  = Cache(self)
-    self.groups = {}
-    self.memorySize=obj.pop("memorySize",20)
-    self.verbose= verbose =obj.pop("verbose",False)
+  def __init__(self, obj,mode="r"):
+    obj = copy.deepcopy(obj)
     
-    overwrite=obj.pop("overwrite",False)
+    self.mode          = mode          = mode
+    self.name          = name          = obj.pop("name",None)
+    self.bucket        = bucket        = obj.pop("bucket",None)
+    self.dynamodb      = dynamodb      = obj.pop("dynamodb",None)
+    self.s3prefix      = s3prefix      = obj.pop("s3prefix",None)
+    self.localOnly     = localOnly     = obj.pop("localOnly",True)
+    self.squeeze       = squeeze       = obj.pop("squeeze",False)
+    self.cacheLocation = cacheLocation = obj.pop("cacheLocation",os.getcwd)
+    self.maxPartitions = maxPartitions = obj.pop("maxPartitions",10)
+    self.ncSize        = ncSize        = obj.pop("ncSize",10)
+    self.memorySize    = memorySize    = obj.pop("memorySize",20)
+    self.cacheSize     = cacheSize     = obj.pop("cacheSize",10) * 1024**2
+    self.verbose       = verbose       = obj.pop("verbose",False)
+    self.overwrite     = overwrite     = obj.pop("overwrite",False)
+    self.autoRemove    = autoRemove    = obj.pop("autoRemove",True)
+    self.s3            = s3            = S3Client(self,obj.pop("credentials",{}))
+    self.folder        = folder        = os.path.join(self.cacheLocation, self.name)
+    self.cache         = cache         = Cache(self)
+    self.groups        = None
+    self.nca           = None
     
-    
-    if name is None :raise Exception("NetCDF2D needs a name")
-    if not localOnly and bucket is None:raise Exception("Need a s3 bucket")
+    if name is None :raise Exception("NetCDF needs a name")
+    if not localOnly and bucket is None:raise Exception("Need a S3 bucket")
     if not os.path.exists(folder):os.makedirs(folder,exist_ok = True)
   
     self.ncaPath = ncaPath = os.path.join(folder,"{}.nca".format(name))
     
-    
-    if not os.path.exists(ncaPath):
-      if localOnly:
-        if verbose:print("Create new .nca from object - localOnly")
-        if not "nca" in obj: raise Exception("NetCDF2D needs a nca object, localOnly=True")
-        self.create(obj)
-      elif s3.exists(ncaPath) and not overwrite:
+    if not os.path.exists(ncaPath) or overwrite:
+      if localOnly or not s3.exists(ncaPath) or overwrite:
+        if verbose:print("Creating a new .nca from object (localOnly={},ncaPath={},overwrite={})".format(localOnly,s3.exists(ncaPath),overwrite))
+        if not "nca" in obj: raise Exception("NetCDF needs a nca object")
+        createNetCDF(ncaPath,ncSize=ncSize,**obj["nca"]) 
+        if not localOnly:s3.upload(ncaPath)
+        if not localOnly and dynamodb:s3.insert()
+      elif s3.exists(ncaPath):
         if verbose:print("Downloading .nca from S3 - {}".format(ncaPath))
         s3.download(ncaPath)
       else:
-        if verbose:print("Create new .nca from object - {} does not exist on S3".format(ncaPath))
-        self.create(obj)
-        s3.upload(ncaPath)
-        if self.dynomodb:s3.insert(ncaPath,self.projectId)
-    self.openNCA()
+        raise Exception("Unknown error")
+  
+  def __enter__(self):
+    self.nca=NetCDF(self.ncaPath,self.mode)
+    self.groups={}
     
-  def create(self,obj):
-      if not "nca" in obj: raise Exception("NetCDF2D needs a nca object")
-      createNetCDF(self.ncaPath,ncSize=self.ncSize,**obj["nca"])  
-  
-  def openNCA(self):
-    self.nca=NetCDF(self.ncaPath,"r")
     for groupname in self.nca.groups:
-      self.groups[groupname] = S3NetCDFGroup(self, self.nca, groupname)
+      self.groups[groupname] = S3NetCDFGroup(self, groupname)
+    return self
   
-  def closeNCA(self):
-    self.nca.close()
-
+  def __exit__(self, exc_type, exc_val, exc_tb):
+      self.nca.close()
+  
+  def updateMetadata(self,obj):
+    self.nca.updateMetadata(obj)
+    
+  
   @property  
   def obj(self):return self.nca.obj
 
@@ -124,7 +122,8 @@ class S3NetCDF(object):
   def dimensions(self):return self.nca.obj['dimensions']
 
   @property
-  def variables(self):return self.nca.allvariables
+  def variables(self):
+    return self.nca.allvariables
 
   def getGroupsByVariable(self,vname):
     groupsByVariable=self.nca.obj['groupsByVariable']
@@ -175,6 +174,7 @@ class S3NetCDF(object):
       If "group" does not exist, it will find the "group" based on the name of the variable and with the least amount of partition (e.g "s","t")
     """
     dimensions=self.dimensions
+    
     obj=parseObj(obj,dimensions)
     
     # if not 'variable' in obj:raise Exception("Needs 'variable' in query")
@@ -182,7 +182,19 @@ class S3NetCDF(object):
     gname=obj['group']
     
     if gname is None:
+      
       groups=self.getGroupsByVariable(vname)
+      
+      if len(groups)>1:
+        dims=obj.pop('dims')
+        _groups=list(filter(lambda x:any(dim in dims for dim in self.groups[x].dimensions),groups))
+        if(len(_groups)>0):
+          groups=_groups
+        
+      # groups=containers.get(container,_groups)
+      # for g in groups:
+      #   if not g in _groups:raise Exception("Please review attribute (container={})  since variable '{}' does not exist in group '{}' (s3netcdf/metadata/{})".format(container,vname,g,container))
+      
       gname=min(groups, key=lambda x: len(self.groups[x].getPartitions(vname,obj)))
     
     partitions,group,idx,indices=self.groups[gname].getPartitions(vname,obj,False)
@@ -192,7 +204,7 @@ class S3NetCDF(object):
     data = group[(vname,*idx)]
     data= np.squeeze(data) if self.squeeze else data
     
-    if return_dimensions and return_indices:return data,self.obj['groups'][gname]['dimensions'],indices
-    if return_dimensions:return data,self.obj['groups'][gname]['dimensions']
+    if return_dimensions and return_indices:return data,group.dimensions,indices
+    if return_dimensions:return data,group.dimensions
     if return_indices:return data,indices
     return data
