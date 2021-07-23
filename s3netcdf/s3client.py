@@ -26,7 +26,8 @@ class S3Client(object):
     if isinstance(parent,dict):
       parent=AttributeDict(parent)
       print(parent)
-    self.s3 = boto3.client('s3',**credentials)
+    session = boto3.Session(**credentials)
+    self.s3 = session.client('s3')
     
     self.s3prefix=parent.s3prefix
     self.parent = parent

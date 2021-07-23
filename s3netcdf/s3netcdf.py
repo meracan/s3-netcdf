@@ -58,8 +58,10 @@ class S3NetCDF(object):
     Each group contains different variables but with the same dimensions
   """  
   def __init__(self, obj,mode="r"):
+    _obj = copy.deepcopy(obj)
     obj = copy.deepcopy(obj)
     
+    self.object        = _obj
     self.mode          = mode          = mode
     self.name          = name          = obj.pop("name",None)
     self.bucket        = bucket        = obj.pop("bucket",None)
@@ -166,6 +168,14 @@ class S3NetCDF(object):
     """    
     group,idx=self._item_(idx)
     group[idx]=value
+  
+  def setFile(self,gname,vname,partIndex,value):
+    group = self.groups[gname]
+    parts=np.zeros(group.ndata,dtype="int")
+    parts[0]=partIndex
+    filepath=group._setFile(vname,parts)
+    with NetCDF(filepath, "r+") as netcdf:netcdf[vname][:]=value
+    if not self.localOnly:self.s3.upload(filepath)
   
   def query(self,obj,return_dimensions=False,return_indices=False):
     """

@@ -130,8 +130,9 @@ class S3NetCDFGroup(object):
     s3 = self.parent.s3
     filepath=self._getFilepath(vname,part)
     if not os.path.exists(filepath):
-      if localOnly or not s3.exists(filepath):NetCDF.create(filepath,dimensions=self.childDimensions,variables=copy.deepcopy(self.variables))  
-      else:s3.download(filepath)
+      NetCDF.create(filepath,dimensions=self.childDimensions,variables=copy.deepcopy(self.variables))  
+      # if localOnly or not s3.exists(filepath):NetCDF.create(filepath,dimensions=self.childDimensions,variables=copy.deepcopy(self.variables))  
+      # else:s3.download(filepath)
     return filepath
     
   def __run(self,vname,indices,_data=None,_value=None):
