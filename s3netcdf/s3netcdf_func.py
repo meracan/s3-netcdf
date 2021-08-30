@@ -367,7 +367,6 @@ def getChildShape(shape,dtype="f4",ncSize=1.0):
   >>> getChildShape(b)
     array([2,2,1,131073])
   """
-  
   itemSize = np.dtype(dtype).itemsize
   ncSize = ncSize * 1024.0**2 # 1024**2 = 1MB
   
@@ -384,6 +383,7 @@ def getChildShape(shape,dtype="f4",ncSize=1.0):
       break
     else:
       fileShape[i] = n
+  
   
   return fileShape
 
@@ -473,7 +473,7 @@ def parseDescriptor(idx,shape,i=0,canTuple=True):
     step = 1 if idx.step is None else idx.step
     if (start < 0 or stop > shape[i]): raise ValueError("Exceeds limit,start={},stop={},shape[i]={}".format(start,stop,shape[i]))
     return np.arange(start, stop,step, dtype="i4")
-  elif isinstance(idx, int):
+  elif isinstance(idx, int) or isinstance(idx,np.int64):
     if (idx < 0 or idx >= shape[i]): raise ValueError("Exceeds limit,idx={},shape[i]={}".format(idx,shape[i]))
     return np.array([idx],dtype="i4")
   elif isinstance(idx, list) or isinstance(idx, np.ndarray):
@@ -485,6 +485,7 @@ def parseDescriptor(idx,shape,i=0,canTuple=True):
       array.append(parseDescriptor(t,shape,j,canTuple=False))
     return array
   else:
+    
     raise TypeError("Invalid argument type.")  
 
 def getIndices(idx,shape):
@@ -818,13 +819,15 @@ def isQuickGet(idx,n,master):
   """
   lidx=list(idx)
   
-  # if len(master[1:n])==0:return True
+  if len(lidx)==0: return False
+  if len(master[1:n])==0:return False
   if not np.all(master[1:n]==1):return False
-  if not len(lidx)==1: return False
+  if len(lidx)>2: return False
+  if len(lidx)==2 and not lidx[1]==slice(None,None,None):return False
+  
   item=lidx[0]
-  if not isinstance(item,int):return False
-  # print("_isQuickGet=True")
-  return True  
+  if isinstance(item,int) or isinstance(item,np.int64) :return True
+  else: return False  
 
 
 # def transform(attributes,value,set=True):

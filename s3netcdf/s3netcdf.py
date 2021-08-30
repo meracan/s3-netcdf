@@ -2,7 +2,7 @@ import os
 import copy
 # from netCDF4 import Dataset
 # from netCDF4 import num2date, date2num
-from netcdf import NetCDF
+from netcdf import NetCDF,getT,setT
 import numpy as np
 from datetime import datetime, timedelta
 import copy
@@ -11,6 +11,8 @@ from .s3netcdf_func import createNetCDF,getMasterShape,parseIndex,parseObj
 from .s3netcdfGroup import S3NetCDFGroup
 from .s3client import S3Client
 from .cache import Cache
+from .s3datetime import getModelDatetime,createS3ModelDatetime
+from .s3netcdf2slf import s3netcdf2slf
 
 class S3NetCDF(object):
   """
@@ -59,13 +61,12 @@ class S3NetCDF(object):
   """  
   def __init__(self, obj,mode="r"):
     obj = copy.deepcopy(obj)
-    
     self.mode          = mode          = mode
     self.name          = name          = obj.pop("name",None)
     self.bucket        = bucket        = obj.pop("bucket",None)
     self.dynamodb      = dynamodb      = obj.pop("dynamodb",None)
     self.s3prefix      = s3prefix      = obj.pop("s3prefix",None)
-    self.localOnly     = localOnly     = obj.pop("localOnly",True)
+    self.localOnly     = localOnly     = obj.pop("localOnly",False)
     self.squeeze       = squeeze       = obj.pop("squeeze",False)
     self.cacheLocation = cacheLocation = obj.pop("cacheLocation",os.getcwd)
     self.maxPartitions = maxPartitions = obj.pop("maxPartitions",10)
@@ -99,6 +100,16 @@ class S3NetCDF(object):
         s3.download(ncaPath)
       else:
         raise Exception("Unknown error")
+    
+    self.nca=NetCDF(self.ncaPath,self.mode)
+    self.groups={}
+    for groupname in self.nca.groups:
+      self.groups[groupname] = S3NetCDFGroup(self, groupname)
+    
+  @property 
+  def parameters(self):
+    return {"name":self.name,"bucket":self.bucket,"s3prefix":self.s3prefix,"cacheLocation":self.cacheLocation}
+    
   
   def __enter__(self):
     self.nca=NetCDF(self.ncaPath,self.mode)
@@ -197,6 +208,7 @@ class S3NetCDF(object):
       
       gname=min(groups, key=lambda x: len(self.groups[x].getPartitions(vname,obj)))
     
+    
     partitions,group,idx,indices=self.groups[gname].getPartitions(vname,obj,False)
     
     if len(partitions)>self.maxPartitions:raise Exception("Change group or select smaller query - {} /MaxPartitions is {}".format(len(partitions),self.maxPartitions))
@@ -208,3 +220,31 @@ class S3NetCDF(object):
     if return_dimensions:return data,group.dimensions
     if return_indices:return data,indices
     return data
+  
+  @staticmethod
+  def getT(*args,**kwargs):
+    return getT(*args,**kwargs)
+  
+  @staticmethod
+  def setT(*args,**kwargs):
+    return setT(*args,**kwargs)
+    
+  @staticmethod
+  def getModelDatetime(*args,**kwargs):
+    return getModelDatetime(*args,**kwargs)
+
+  @staticmethod
+  def createS3ModelDatetime(*args,**kwargs):
+    return createS3ModelDatetime(*args,**kwargs)
+  
+  def toslf(self,*args,**kwargs):
+    return s3netcdf2slf(self,*args,**kwargs)
+  
+  
+  # TODO: transpose
+  # def transpose(self,gname,vname):
+  #   self.groups[gname].transpose(vname)
+  
+  # TODO: Upload Memmap
+  # def uploadMemmap(self,gname,vname):
+  #   self.groups[gname].uploadMemmap(vname)

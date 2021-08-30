@@ -121,7 +121,9 @@ class S3NetCDFGroup(object):
     filepath=self._getFilepath(vname,part)
     if not os.path.exists(filepath):
       if localOnly:raise Exception("File does not exist. No data was assigned. {}".format(filepath))
-      if not s3.exists(filepath):raise Exception("File does not exist on S3. No data was assigned. {}".format(filepath))
+      if not s3.exists(filepath):
+        print("WARNING: File does not exist on S3. Zeroes were assigned to the array. {}".format(filepath))
+        return None
       s3.download(filepath)
     return filepath
 
@@ -137,8 +139,6 @@ class S3NetCDFGroup(object):
   def __run(self,vname,indices,_data=None,_value=None):
     shape = self.shape
     masterShape = self.master
-    
-    
     partitions = getPartitions(indices, shape,masterShape)
     masterIndices = getMasterIndices(indices,shape,masterShape)
 
@@ -148,8 +148,11 @@ class S3NetCDFGroup(object):
       if _data is not None:
         d=_data.flatten()
         filepath=self._getFile(vname,part)
-        with NetCDF(filepath, "r") as netcdf:d=getItemNetCDF(netcdf[vname],d,ipart,idata)
-        if not self.parent.localOnly and self.parent.autoRemove:os.remove(filepath)
+        if filepath is not None:
+          with NetCDF(filepath, "r") as netcdf:d=getItemNetCDF(netcdf[vname],d,ipart,idata)
+          if not self.parent.localOnly and self.parent.autoRemove:
+            try:os.remove(filepath)
+            except:print("Already removed")
         _data=d.reshape(_data.shape)
       
       # SET
@@ -173,7 +176,7 @@ class S3NetCDFGroup(object):
       dataShape = getDataShape(indices)
       ftype=self.variables[vname]['ftype']
       if ftype=='M':ftype='d'
-      data = np.empty(dataShape,dtype=ftype)
+      data = np.zeros(dataShape,dtype=ftype)
       data=data.reshape(ishape)
     
     matrix=[np.arange(idim) for idim in tmshape[:len(ishape)]]
@@ -200,14 +203,15 @@ class S3NetCDFGroup(object):
     Get data based on the query
     """
     vname,idx = self.__checkVariable(idx)
-
-    if isQuickGet(idx,self.ndata,self.master):
-      data=self._quickGet(vname,list(idx)[0])
-    else:
-      data=self.__subrun(vname,idx)
-      ftype=self.variables[vname]['ftype']
-      if ftype=='M':data=data.astype("datetime64[ms]")
-      if ftype=='S1':data=chartostring(data)
+    
+    # if isQuickGet(idx,self.ndata,np.array(self.master)):
+    #   data=self._quickGet(vname,list(idx)[0])
+    # else:
+    data=self.__subrun(vname,idx)
+    
+    ftype=self.variables[vname]['ftype']
+    if ftype=='M':data=data.astype("datetime64[ms]")
+    if ftype=='S1':data=chartostring(data)
       
     return data  
     
@@ -223,31 +227,31 @@ class S3NetCDFGroup(object):
     # if self.variables[vname]['type']!="S":    
     value= checkValue(value,idx,self.shape)
     
-    if isQuickSet(idx,self.ndata,self.master,self.child):
-      self._quickSet(vname,self._getPartIndex(idx),value)
-    else:
-      self.__subrun(vname,idx,value=value)
+    # if isQuickSet(idx,self.ndata,self.master,self.child):
+      # self._quickSet(vname,self._getPartIndex(idx),value)
+    # else:
+    self.__subrun(vname,idx,value=value)
  
     
   def _getPartIndex(self,idx):
     return int(np.floor(list(idx)[0].start/self.child[0]))
     
     
-  def _quickSet(self,vname,partIndex,value):
-    parts=np.zeros(self.ndata,dtype="int")
-    parts[0]=partIndex
-    filepath=self._setFile(vname,parts)
-    with NetCDF(filepath, "r+") as netcdf:netcdf[vname][:]=value
-    if not self.parent.localOnly:self.parent.s3.upload(filepath)
+  # def _quickSet(self,vname,partIndex,value):
+  #   parts=np.zeros(self.ndata,dtype="int")
+  #   parts[0]=partIndex
+  #   filepath=self._setFile(vname,parts)
+  #   with NetCDF(filepath, "r+") as netcdf:netcdf[vname][:]=value
+  #   if not self.parent.localOnly:self.parent.s3.upload(filepath)
   
-  def _quickGet(self,vname,i):
-    print("here",vname,i)
-    parts=np.zeros(self.ndata,dtype="int")
-    parts[0]=int(np.floor(i/self.child[0]))
-    index=int(i%self.child[0])
-    filepath=self._getFile(vname,parts)
-    with NetCDF(filepath, "r") as netcdf:var = netcdf[vname][index]
-    return var
+  # def _quickGet(self,vname,i):
+    
+  #   parts=np.zeros(self.ndata,dtype="int")
+  #   parts[0]=int(np.floor(i/self.child[0]))
+  #   index=int(i%self.child[0])
+  #   filepath=self._getFile(vname,parts)
+  #   with NetCDF(filepath, "r") as netcdf:var = netcdf[vname][index]
+  #   return var
     
     # if isinstance(i,int):
     # elif isinstance(i,slice):
@@ -256,5 +260,18 @@ class S3NetCDFGroup(object):
     #   with NetCDF(filepath, "r") as netcdf:var = netcdf[vname][i]
       
     #   return var
-      
   
+  # TODO: Transpose  
+  #def transpose(self,vanme):
+  # if memmap not exist -> check s3 and download (nca2mem), if not give error
+  # call mem2memT
+  # 
+  
+  #TODO: get data to memap
+  
+  #TODO: change code to zarr
+  
+  # TODO: UploadMemmap
+  #def transpose(self,vanme):
+  # if memmap not exist -> check s3 and download, if not give error
+  #

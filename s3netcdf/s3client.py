@@ -1,4 +1,5 @@
 import os
+import random
 import boto3
 from botocore.errorfactory import ClientError
 from time import sleep
@@ -25,8 +26,14 @@ class S3Client(object):
     """
     if isinstance(parent,dict):
       parent=AttributeDict(parent)
-      print(parent)
-    self.s3 = boto3.client('s3',**credentials)
+    
+    # Add text to ~./config
+    # [profile jcousineau]
+    # aws_access_key_id=
+    # aws_secret_access_key=
+    # region=
+    session=boto3.Session(**credentials)
+    self.s3 = self.loop(lambda:session.client('s3'))
     
     self.s3prefix=parent.s3prefix
     self.parent = parent
@@ -93,13 +100,12 @@ class S3Client(object):
     """
     loop to trying to get something from the web
     """
-    try_loops=5
+    try_loops=100
     while try_loops > 0:
       try:
-        callback()
-        try_loops=0
+        return callback()
       except Exception as err:
-        sleep(5)
+        sleep(random.random()*10.0)
         try_loops -= 1
         if try_loops <1:raise err    
 
